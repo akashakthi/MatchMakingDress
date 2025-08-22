@@ -1,0 +1,6 @@
+{
+  "name": "MMDress.Editor",
+  "references": [ "MMDress.Runtime" ],
+  "includePlatforms": [ "Editor" ],
+  "autoReferenced": true
+}
