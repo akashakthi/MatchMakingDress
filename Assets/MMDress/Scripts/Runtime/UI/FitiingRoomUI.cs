@@ -39,15 +39,18 @@ namespace MMDress.UI
             Debug.Log("[MMDress] FittingRoomUI: Customer selected, membuka panel.");
             if (panelRoot) panelRoot.SetActive(true);
             else Debug.LogWarning("[MMDress] panelRoot belum di-assign ke FittingRoomUI.");
+
+            ServiceLocator.Events.Publish(new FittingUIOpened());
         }
 
         public void Close()
         {
             if (_current != null)
             {
-                _current.Outfit.RevertPreview();
-                _current.FinishFitting();   // -> bikin pelanggan pergi + tambah skor
+                _current.Outfit.RevertPreview(); // UI memanggil domain
+                _current.FinishFitting();        // -> state Leaving (logic)
             }
+            ServiceLocator.Events.Publish(new FittingUIClosed());
             _current = null;
             if (panelRoot) panelRoot.SetActive(false);
         }

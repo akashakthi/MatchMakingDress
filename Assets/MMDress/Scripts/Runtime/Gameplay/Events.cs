@@ -36,4 +36,8 @@ namespace MMDress.Gameplay
         public readonly Customer.CustomerController customer;
         public CustomerTimedOut(Customer.CustomerController c) { customer = c; }
     }
+
+
+    public readonly struct FittingUIOpened { }
+    public readonly struct FittingUIClosed { }
 }
