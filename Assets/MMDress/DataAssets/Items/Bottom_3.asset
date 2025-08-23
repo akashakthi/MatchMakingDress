@@ -16,7 +16,7 @@ MonoBehaviour:
   displayName: Bottom 3
   slot: 1
   sprite: {fileID: 8290236334173581513, guid: da58fef71425d254d82e35f734266b45, type: 3}
-  localPos: {x: 0, y: 0, z: 0}
+  localPos: {x: 0, y: -1.5, z: 0}
   localScale: {x: 1, y: 1, z: 1}
   localRotZ: 0
   requiresMaterials: 0

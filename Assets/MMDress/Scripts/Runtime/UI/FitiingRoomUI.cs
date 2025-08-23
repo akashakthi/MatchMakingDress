@@ -1,62 +1,99 @@
 ﻿using UnityEngine;
+using UnityEngine.UI;
 using MMDress.Core;
 using MMDress.Gameplay;
 using MMDress.Data;
 
 namespace MMDress.UI
 {
+    /// Panel UI Fitting: buka saat customer dipilih, populasi grid Top/Bottom,
+    /// klik item -> Preview (TryOn), tombol Equip -> pasang permanen.
     public class FittingRoomUI : MonoBehaviour
     {
-        [SerializeField] private GameObject panelRoot; // HARUS anak Canvas yang aktif
-        private Customer.CustomerController _current;
-        private bool _subscribed;
+        [Header("Panel Root")]
+        [SerializeField] private GameObject panelRoot;
+
+        [Header("Data")]
+        [SerializeField] private CatalogSO catalog;
+
+        [Header("Grids")]
+        [SerializeField] private ItemGridView topGrid;
+        [SerializeField] private ItemGridView bottomGrid;
+
+        [Header("Buttons")]
+        [SerializeField] private Button tabTopButton;
+        [SerializeField] private Button tabBottomButton;
+        [SerializeField] private Button equipButton;
+        [SerializeField] private Button closeButton;
+
+        Customer.CustomerController _current;
+        ItemSO _previewItem;
 
         void Awake()
         {
             if (panelRoot) panelRoot.SetActive(false);
-        }
+            if (tabTopButton) tabTopButton.onClick.AddListener(() => ShowTab(OutfitSlot.Top));
+            if (tabBottomButton) tabBottomButton.onClick.AddListener(() => ShowTab(OutfitSlot.Bottom));
+            if (equipButton) equipButton.onClick.AddListener(EquipPreview);
+            if (closeButton) closeButton.onClick.AddListener(Close);
 
-        void Start()
-        {
-            if (ServiceLocator.Events == null)
-            {
-                Debug.LogError("[MMDress] EventBus belum ter-init. Pastikan GameBootstrap ada di scene.");
-                return;
-            }
+            if (topGrid) topGrid.OnItemSelected = OnItemClicked;
+            if (bottomGrid) bottomGrid.OnItemSelected = OnItemClicked;
+
             ServiceLocator.Events.Subscribe<CustomerSelected>(OnSelected);
-            _subscribed = true;
         }
-
         void OnDestroy()
         {
-            if (_subscribed && ServiceLocator.Events != null)
-                ServiceLocator.Events.Unsubscribe<CustomerSelected>(OnSelected);
+            ServiceLocator.Events.Unsubscribe<CustomerSelected>(OnSelected);
         }
 
-        private void OnSelected(CustomerSelected e)
+        void OnSelected(CustomerSelected e)
         {
             _current = e.customer;
-            Debug.Log("[MMDress] FittingRoomUI: Customer selected, membuka panel.");
-            if (panelRoot) panelRoot.SetActive(true);
-            else Debug.LogWarning("[MMDress] panelRoot belum di-assign ke FittingRoomUI.");
+            _previewItem = null;
 
+            if (panelRoot) panelRoot.SetActive(true);
             ServiceLocator.Events.Publish(new FittingUIOpened());
+
+            // isi katalog ke grid
+            if (topGrid) { topGrid.SetCatalog(catalog); topGrid.Refresh(); }
+            if (bottomGrid) { bottomGrid.SetCatalog(catalog); bottomGrid.Refresh(); }
+
+            ShowTab(OutfitSlot.Top);
+            Debug.Log($"[MMDress] Catalog items: {catalog?.items?.Count}");
+
+        }
+
+        void ShowTab(OutfitSlot slot)
+        {
+            bool top = slot == OutfitSlot.Top;
+            if (topGrid) topGrid.gameObject.SetActive(top);
+            if (bottomGrid) bottomGrid.gameObject.SetActive(!top);
+        }
+
+        void OnItemClicked(ItemSO item)
+        {
+            _previewItem = item;
+            _current?.Outfit.TryOn(item); // preview
+        }
+
+        void EquipPreview()
+        {
+            if (_current == null || _previewItem == null) return;
+            _current.Outfit.Equip(_previewItem);
         }
 
         public void Close()
         {
             if (_current != null)
             {
-                _current.Outfit.RevertPreview(); // UI memanggil domain
-                _current.FinishFitting();        // -> state Leaving (logic)
+                _current.Outfit.RevertPreview();
+                _current.FinishFitting(); // lanjut Leaving
             }
             ServiceLocator.Events.Publish(new FittingUIClosed());
             _current = null;
+            _previewItem = null;
             if (panelRoot) panelRoot.SetActive(false);
         }
-
-
-        public void Preview(ItemSO item) => _current?.Outfit.TryOn(item);
-        public void Equip(ItemSO item) => _current?.Outfit.Equip(item);
     }
 }
