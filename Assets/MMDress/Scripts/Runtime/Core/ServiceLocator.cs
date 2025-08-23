@@ -1,3 +1,4 @@
+// Assets/MMDress/Scripts/Runtime/Core/ServiceLocator.cs
 using MMDress.Services;
 
 namespace MMDress.Core
@@ -8,5 +9,6 @@ namespace MMDress.Core
         public static IInventoryService Inventory { get; set; }
         public static IWalletService Wallet { get; set; }
         public static ISaveService Save { get; set; }
+        public static IScoreService Score { get; set; }   // <-- baru
     }
 }

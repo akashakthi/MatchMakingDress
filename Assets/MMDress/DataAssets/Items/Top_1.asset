@@ -12,10 +12,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 58a3f072a561f674cb5887719e71a5d2, type: 3}
   m_Name: Top_1
   m_EditorClassIdentifier: 
-  id: top_8904
+  id: top_3401
   displayName: Top 1
   slot: 0
-  sprite: {fileID: 0}
+  sprite: {fileID: 1544103350761869596, guid: 1ecbe216af4fb254d97ad95b499ad2c0, type: 3}
   localPos: {x: 0, y: 0, z: 0}
   localScale: {x: 1, y: 1, z: 1}
   localRotZ: 0

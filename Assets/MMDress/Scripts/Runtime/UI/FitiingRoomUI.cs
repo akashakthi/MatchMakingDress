@@ -1,49 +1,59 @@
-using UnityEngine;
+﻿using UnityEngine;
 using MMDress.Core;
 using MMDress.Gameplay;
 using MMDress.Data;
 
 namespace MMDress.UI
 {
-    /// <summary>
-    /// Tetap aktif di scene. 'panelRoot' yang diaktif/nonaktif.
-    /// Dengar event CustomerSelected lalu buka panel & bind customer.
-    /// </summary>
     public class FittingRoomUI : MonoBehaviour
     {
-        [Header("Assign ke panel (GameObject) yang ingin ditampilkan/sembunyikan")]
-        [SerializeField] private GameObject panelRoot;
-
+        [SerializeField] private GameObject panelRoot; // HARUS anak Canvas yang aktif
         private Customer.CustomerController _current;
+        private bool _subscribed;
 
         void Awake()
         {
-            if (panelRoot != null) panelRoot.SetActive(false);
+            if (panelRoot) panelRoot.SetActive(false);
+        }
+
+        void Start()
+        {
+            if (ServiceLocator.Events == null)
+            {
+                Debug.LogError("[MMDress] EventBus belum ter-init. Pastikan GameBootstrap ada di scene.");
+                return;
+            }
             ServiceLocator.Events.Subscribe<CustomerSelected>(OnSelected);
+            _subscribed = true;
         }
 
         void OnDestroy()
         {
-            ServiceLocator.Events.Unsubscribe<CustomerSelected>(OnSelected);
+            if (_subscribed && ServiceLocator.Events != null)
+                ServiceLocator.Events.Unsubscribe<CustomerSelected>(OnSelected);
         }
 
         private void OnSelected(CustomerSelected e)
         {
             _current = e.customer;
-            if (panelRoot != null) panelRoot.SetActive(true);
-            // TODO Day-4: bind grid item Top/Bottom di sini
+            Debug.Log("[MMDress] FittingRoomUI: Customer selected, membuka panel.");
+            if (panelRoot) panelRoot.SetActive(true);
+            else Debug.LogWarning("[MMDress] panelRoot belum di-assign ke FittingRoomUI.");
         }
 
-        // Dipanggil tombol UI "Close"
         public void Close()
         {
-            if (_current != null) _current.Outfit.RevertPreview();
+            if (_current != null)
+            {
+                _current.Outfit.RevertPreview();
+                _current.FinishFitting();   // -> bikin pelanggan pergi + tambah skor
+            }
             _current = null;
-            if (panelRoot != null) panelRoot.SetActive(false);
+            if (panelRoot) panelRoot.SetActive(false);
         }
 
-        // Dipanggil tombol UI "Preview/Equip" saat grid diimplementasi (Day-4)
-        public void Preview(ItemSO item) { _current?.Outfit.TryOn(item); }
-        public void Equip(ItemSO item) { _current?.Outfit.Equip(item); }
+
+        public void Preview(ItemSO item) => _current?.Outfit.TryOn(item);
+        public void Equip(ItemSO item) => _current?.Outfit.Equip(item);
     }
 }

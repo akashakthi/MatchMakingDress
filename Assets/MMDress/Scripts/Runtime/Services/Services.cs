@@ -1,6 +1,22 @@
 using System.Collections.Generic;
 using UnityEngine;
 using MMDress.Data;
+// Assets/MMDress/Scripts/Runtime/Services/Services.cs
+namespace MMDress.Services
+{
+    public interface IScoreService { int Score { get; } void Add(int points); }
+
+    public class DevScoreService : IScoreService
+    {
+        public int Score { get; private set; }
+        public void Add(int points)
+        {
+            if (points <= 0) return;
+            Score += points;
+            Debug.Log($"[MMDress] Score +{points} = {Score}");
+        }
+    }
+}
 
 namespace MMDress.Services
 {

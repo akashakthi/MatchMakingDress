@@ -23,4 +23,17 @@ namespace MMDress.Gameplay
         public readonly Data.ItemSO item;
         public ItemEquipped(Data.ItemSO i) { item = i; }
     }
+
+    public readonly struct CustomerServed
+    {
+        public readonly Customer.CustomerController customer;
+        public readonly int points;
+        public CustomerServed(Customer.CustomerController c, int p) { customer = c; points = p; }
+    }
+
+    public readonly struct CustomerTimedOut
+    {
+        public readonly Customer.CustomerController customer;
+        public CustomerTimedOut(Customer.CustomerController c) { customer = c; }
+    }
 }
