@@ -1,28 +1,39 @@
 ﻿using System.Collections.Generic;
 using UnityEngine;
 using MMDress.Core;
+// tambahkan ini agar mudah memanggil ClearEquipped / OutfitSlot
+using MMDress.Character;
+using MMDress.Data;
 
 namespace MMDress.Customer
 {
+    /// Mengelola siklus hidup customer:
+    /// spawn -> (queue/seat) -> dilayani -> pergi -> kembali ke pool/destroy.
+    [DisallowMultipleComponent]
+    [AddComponentMenu("MMDress/Gameplay/Customer Spawner")]
     public class CustomerSpawner : MonoBehaviour
     {
-        [Header("Points")]
-        [SerializeField] Transform spawnPoint;
-        [SerializeField] Transform exitPoint;
-        [SerializeField] Transform seatsRoot;   // children = seat pos
-        [SerializeField] Transform queueRoot;   // children = queue pos
-        [SerializeField] GameObject customerPrefab;
+        [Header("References")]
+        [SerializeField] private Transform spawnPoint;
+        [SerializeField] private Transform exitPoint;
+
+        [Tooltip("Parent berisi anak-anak Transform sebagai posisi seat.")]
+        [SerializeField] private Transform seatsRoot;
+
+        [Tooltip("Parent berisi anak-anak Transform sebagai posisi antrian.")]
+        [SerializeField] private Transform queueRoot;
+
+        [SerializeField] private GameObject customerPrefab;
 
         [Header("Rules")]
-        [SerializeField] float spawnInterval = 3f;
-        [SerializeField] int maxInScene = 5;
-        [SerializeField] Vector2 waitSecondsRange = new(10, 20);
+        [SerializeField, Min(0.1f)] private float spawnInterval = 3f;
+        [SerializeField, Min(1)] private int maxInScene = 5;
+        [SerializeField] private Vector2 waitSecondsRange = new(10, 20);
 
         [Header("Pooling")]
-        [SerializeField] bool usePooling = true;
-        [SerializeField] int prewarm = 5;
+        [SerializeField] private bool usePooling = true;
+        [SerializeField, Min(0)] private int prewarm = 5;
 
-        float _timer;
         readonly List<Transform> _seats = new();
         readonly List<Transform> _queue = new();
 
@@ -32,54 +43,84 @@ namespace MMDress.Customer
         readonly List<CustomerController> _active = new();
         SimplePool<CustomerController> _pool;
 
+        float _spawnAccu;
+
+        void OnValidate() => CollectPoints();
+
         void Awake()
         {
-            // Seats & Queue
-            if (seatsRoot)
-            {
-                for (int i = 0; i < seatsRoot.childCount; i++) _seats.Add(seatsRoot.GetChild(i));
-                _seatOccupied = new bool[_seats.Count];
-            }
-            if (queueRoot)
-            {
-                for (int i = 0; i < queueRoot.childCount; i++) _queue.Add(queueRoot.GetChild(i));
-                _queueOcc = new CustomerController[_queue.Count];
-            }
+            CollectPoints();
 
-            // Pool
             if (usePooling)
             {
                 _pool = new SimplePool<CustomerController>(
                     factory: CreateNew,
-                    onGet: c => { c.transform.position = spawnPoint.position; c.transform.rotation = Quaternion.identity; c.gameObject.SetActive(true); },
-                    onRelease: c => { c.gameObject.SetActive(false); }
+                    onGet: (c) =>
+                    {
+                        c.gameObject.SetActive(true);
+                        if (spawnPoint) c.transform.position = spawnPoint.position;
+
+                        // Reset outfit TANPA bergantung pada ResetAll()
+                        var outfit = c.GetComponentInChildren<CharacterOutfitController>(true);
+                        if (outfit != null)
+                        {
+                            outfit.RevertPreview();
+                            outfit.ClearEquipped(OutfitSlot.Top);
+                            outfit.ClearEquipped(OutfitSlot.Bottom);
+                        }
+                    },
+                    onRelease: (c) =>
+                    {
+                        c.gameObject.SetActive(false);
+                    }
                 );
-                int cnt = Mathf.Max(prewarm, maxInScene);
-                for (int i = 0; i < cnt; i++) _pool.Release(CreateNew());
+
+                for (int i = 0; i < prewarm; i++)
+                {
+                    var tmp = _pool.Get();
+                    _pool.Release(tmp);
+                }
             }
         }
 
-        void Start() { _timer = 0f; }
+        void Start() { _spawnAccu = 0f; }
 
         void Update()
         {
-            if (!customerPrefab || !spawnPoint || !exitPoint || _seats.Count == 0) return;
+            if (!IsReadyToSpawn()) return;
 
-            _timer -= Time.deltaTime;
-            if (_timer > 0f) return;
-            _timer = spawnInterval;
+            _spawnAccu += Time.deltaTime;
 
-            int hardCap = Mathf.Min(maxInScene, _seats.Count + _queue.Count);
-            if (_active.Count >= hardCap) return;
+            while (_spawnAccu >= spawnInterval)
+            {
+                _spawnAccu -= spawnInterval;
 
-            int si = FindFreeSeat();
-            if (si >= 0) { SpawnToSeat(si); return; }
+                if (_active.Count >= HardCap()) break;
 
-            int qi = FindFreeQueue();
-            if (qi >= 0) { SpawnToQueue(qi); }
+                int si = FindFreeSeat();
+                if (si >= 0) { SpawnToSeat(si); continue; }
+
+                int qi = FindFreeQueue();
+                if (qi >= 0) { SpawnToQueue(qi); }
+
+                if (si < 0 && qi < 0) break;
+            }
         }
 
         // ===== helpers =====
+        bool IsReadyToSpawn()
+        {
+            if (!customerPrefab || !spawnPoint || !exitPoint) return false;
+            if (_seats.Count == 0) return false;
+            return true;
+        }
+
+        int HardCap()
+        {
+            int logicalMax = _seats.Count + _queue.Count;
+            return Mathf.Min(maxInScene, logicalMax);
+        }
+
         CustomerController CreateNew()
         {
             var go = Instantiate(customerPrefab);
@@ -93,8 +134,19 @@ namespace MMDress.Customer
             else Destroy(c.gameObject);
         }
 
-        int FindFreeSeat() { for (int i = 0; i < _seats.Count; i++) if (!_seatOccupied[i]) return i; return -1; }
-        int FindFreeQueue() { if (_queue.Count == 0) return -1; for (int i = 0; i < _queue.Count; i++) if (_queueOcc[i] == null) return i; return -1; }
+        int FindFreeSeat()
+        {
+            for (int i = 0; i < _seats.Count; i++)
+                if (!_seatOccupied[i]) return i;
+            return -1;
+        }
+        int FindFreeQueue()
+        {
+            if (_queueOcc == null || _queueOcc.Length == 0) return -1;
+            for (int i = 0; i < _queueOcc.Length; i++)
+                if (_queueOcc[i] == null) return i;
+            return -1;
+        }
 
         void SpawnToSeat(int seatIndex)
         {
@@ -103,7 +155,16 @@ namespace MMDress.Customer
             _seatOccupied[seatIndex] = true;
 
             float waitSec = Random.Range(waitSecondsRange.x, waitSecondsRange.y);
-            c.InitSeat(_seats[seatIndex].position, exitPoint.position, seatIndex, FreeSeat, waitSec, OnDespawn);
+
+            // PAKAI POSISIONAL sesuai signature skripmu
+            c.InitSeat(
+                _seats[seatIndex].position,
+                exitPoint.position,
+                seatIndex,
+                FreeSeat,
+                waitSec,
+                OnDespawn
+            );
         }
 
         void SpawnToQueue(int queueIndex)
@@ -113,24 +174,36 @@ namespace MMDress.Customer
             _queueOcc[queueIndex] = c;
 
             float waitSec = Random.Range(waitSecondsRange.x, waitSecondsRange.y);
-            c.InitQueue(_queue[queueIndex].position, exitPoint.position, queueIndex, FreeQueue, waitSec, OnDespawn);
+
+            // PAKAI POSISIONAL sesuai signature skripmu
+            c.InitQueue(
+                _queue[queueIndex].position,
+                exitPoint.position,
+                queueIndex,
+                FreeQueue,
+                waitSec,
+                OnDespawn
+            );
         }
 
         void OnDespawn(CustomerController c) => Release(c);
 
         void FreeSeat(int seatIndex)
         {
+            if (_seatOccupied == null) return;
             if (seatIndex < 0 || seatIndex >= _seatOccupied.Length) return;
+
             _seatOccupied[seatIndex] = false;
 
-            // Promosikan antrian depan
+            if (_queueOcc == null) return;
+
             for (int qi = 0; qi < _queueOcc.Length; qi++)
             {
                 var waiting = _queueOcc[qi];
                 if (waiting == null) continue;
 
-                _queueOcc[qi] = null;               // kosongkan slot antrian
-                _seatOccupied[seatIndex] = true;    // seat langsung terisi
+                _queueOcc[qi] = null;
+                _seatOccupied[seatIndex] = true;
                 waiting.PromoteToSeat(_seats[seatIndex].position, seatIndex, FreeSeat);
                 break;
             }
@@ -141,6 +214,28 @@ namespace MMDress.Customer
             if (_queueOcc == null) return;
             if (queueIndex < 0 || queueIndex >= _queueOcc.Length) return;
             _queueOcc[queueIndex] = null;
+        }
+
+        void CollectPoints()
+        {
+            _seats.Clear();
+            _queue.Clear();
+
+            if (seatsRoot)
+            {
+                for (int i = 0; i < seatsRoot.childCount; i++)
+                    _seats.Add(seatsRoot.GetChild(i));
+                _seatOccupied = new bool[_seats.Count];
+            }
+            else _seatOccupied = System.Array.Empty<bool>();
+
+            if (queueRoot)
+            {
+                for (int i = 0; i < queueRoot.childCount; i++)
+                    _queue.Add(queueRoot.GetChild(i));
+                _queueOcc = new CustomerController[_queue.Count];
+            }
+            else _queueOcc = System.Array.Empty<CustomerController>();
         }
     }
 }

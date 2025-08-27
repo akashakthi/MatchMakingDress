@@ -2,6 +2,8 @@
 using UnityEngine;
 using MMDress.Core;
 using MMDress.Gameplay;
+using MMDress.UI;
+
 
 namespace MMDress.Customer
 {
@@ -139,6 +141,19 @@ namespace MMDress.Customer
         // Dipanggil UI saat panel Close
         public void FinishFitting()
         {
+
+            // Pastikan preview sudah di-commit (kamu sudah panggil EquipAllPreview dari UI)
+            // Hitung berapa item yang benar-benar ter-equip
+            int items = 0;
+            var outfit = Outfit; // asumsi properti ini sudah ada di class-mu
+            if (outfit != null)
+            {
+                if (outfit.GetEquipped(MMDress.Data.OutfitSlot.Top) != null) items++;
+                if (outfit.GetEquipped(MMDress.Data.OutfitSlot.Bottom) != null) items++;
+            }
+
+            // Broadcast untuk ScoreService / HUD
+            ServiceLocator.Events?.Publish(new CustomerCheckout(this, items));
             if (_state != State.Fitting) return;
             // skor di-skip sampai mekanik ganti baju siap
             FreeSeat();

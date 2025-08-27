@@ -433,6 +433,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   topAnchor: {fileID: 3228443379766070622}
   bottomAnchor: {fileID: 4144654736366317078}
+  forceUnlitMaterial: 0
+  baseColor: {r: 1, g: 1, b: 1, a: 1}
 --- !u!1 &5225548709671370750
 GameObject:
   m_ObjectHideFlags: 0
