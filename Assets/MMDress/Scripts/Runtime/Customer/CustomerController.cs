@@ -109,10 +109,15 @@ namespace MMDress.Customer
                     {
                         OnTimedOut?.Invoke(this);
                         FreeSeat();
+
+                        // >>> tambahkan baris ini supaya ekonomi/score dapat 0 item saat timeout
+                        ServiceLocator.Events?.Publish(new CustomerCheckout(this, 0));
+
                         BeginLeaving();
                         ServiceLocator.Events?.Publish(new CustomerTimedOut(this));
                     }
                     break;
+
 
                 case State.Leaving:
                     if (MoveTo(_exitPos))
