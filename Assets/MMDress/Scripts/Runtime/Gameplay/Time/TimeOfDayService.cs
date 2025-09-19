@@ -1,112 +1,74 @@
-﻿using System;
-using UnityEngine;
+﻿using UnityEngine;
+using System;
 
 namespace MMDress.Runtime.Timer
 {
     public enum DayPhase { Night, Prep, Open, Closed }
 
+    [DisallowMultipleComponent]
     public sealed class TimeOfDayService : MonoBehaviour
     {
-        [Header("Schedule (Game Clock)")]
-        [Tooltip("Prep (06:00–08:00) dipadatkan menjadi 1 menit realtime.")]
-        [SerializeField] private float prepRealSeconds = 60f;
-        [Tooltip("Durasi fase Open (08:00–16:00) dalam detik realtime (sementara konstan).")]
-        [SerializeField] private float openRealSeconds = 240f;
+        [Header("Durasi real per fase (detik)")]
+        public float night00to06Seconds = 10f;   // fast-forward 00–06
+        public float prepSeconds = 120f;  // 06–08 (2 menit)
+        public float openSeconds = 240f;  // 08–16
+        public float closed16to24Seconds = 10f;   // fast-forward 16–24
 
-        [Header("State (read-only)")]
-        [SerializeField] private DayPhase currentPhase = DayPhase.Night;
-        public DayPhase CurrentPhase => currentPhase;
-
+        public DayPhase CurrentPhase { get; private set; } = DayPhase.Night;
         public event Action<DayPhase> DayPhaseChanged;
-        public event Action ShopOpened;
-        public event Action ShopClosed;
-        public event Action DayLooped;
 
-        // internal timers
-        private float _phaseTimer;
-        private bool _loopStarted;
+        float _timer;
+        int _idx; // 0 Night, 1 Prep, 2 Open, 3 Closed
 
-        private void Awake()
+        void OnEnable()
         {
-            // Mulai dari Night → tuasikan ke Prep on Start
-            currentPhase = DayPhase.Night;
-            _phaseTimer = 0f;
+            _idx = 0; _timer = 0f;
+            CurrentPhase = (DayPhase)_idx;
+            DayPhaseChanged?.Invoke(CurrentPhase); // seed awal
         }
 
-        private void Start()
+        void Update()
         {
-            // Fast-forward malam → masuk Prep
-            EnterPhase(DayPhase.Prep);
-        }
-
-        private void Update()
-        {
-            _phaseTimer += Time.deltaTime;
-
-            switch (currentPhase)
+            float dur = GetDur(_idx);
+            if (dur <= 0f) dur = 0.0001f;
+            _timer += Time.deltaTime;
+            if (_timer >= dur)
             {
-                case DayPhase.Prep:
-                    if (_phaseTimer >= prepRealSeconds)
-                        EnterPhase(DayPhase.Open);
-                    break;
-
-                case DayPhase.Open:
-                    if (_phaseTimer >= openRealSeconds)
-                        EnterPhase(DayPhase.Closed);
-                    break;
-
-                case DayPhase.Closed:
-                    // Fast-forward malam singkat → balik ke Prep
-                    // Bisa bikin delay kecil kalau mau animasi transisi
-                    EnterPhase(DayPhase.Night);
-                    break;
-
-                case DayPhase.Night:
-                    // langsung loop (skip malam)
-                    EnterPhase(DayPhase.Prep);
-                    DayLooped?.Invoke();
-                    break;
+                _timer -= dur;
+                _idx = (_idx + 1) % 4;
+                CurrentPhase = (DayPhase)_idx;
+                DayPhaseChanged?.Invoke(CurrentPhase);
             }
         }
 
-        private void EnterPhase(DayPhase next)
+        float GetDur(int i) => i switch
         {
-            currentPhase = next;
-            _phaseTimer = 0f;
-            DayPhaseChanged?.Invoke(currentPhase);
+            0 => night00to06Seconds,
+            1 => prepSeconds,
+            2 => openSeconds,
+            3 => closed16to24Seconds,
+            _ => 1f
+        };
 
-            if (next == DayPhase.Open) ShopOpened?.Invoke();
-            if (next == DayPhase.Closed) ShopClosed?.Invoke();
-        }
-
-        // Format sederhana untuk HUD (mock jam)
+        // 24h virtual clock
         public string GetClockText()
         {
-            switch (currentPhase)
-            {
-                case DayPhase.Prep:
-                    // map 0..prepRealSeconds ke 06:00..08:00
-                    float tP = Mathf.Clamp01(_phaseTimer / Mathf.Max(0.0001f, prepRealSeconds));
-                    int minutesP = Mathf.RoundToInt(Mathf.Lerp(6 * 60, 8 * 60, tP));
-                    return ToHHMM(minutesP);
-                case DayPhase.Open:
-                    float tO = Mathf.Clamp01(_phaseTimer / Mathf.Max(0.0001f, openRealSeconds));
-                    int minutesO = Mathf.RoundToInt(Mathf.Lerp(8 * 60, 16 * 60, tO));
-                    return ToHHMM(minutesO);
-                case DayPhase.Closed:
-                    return "16:00";
-                case DayPhase.Night:
-                    return "—";
-                default:
-                    return "";
-            }
+            int minutes = Mathf.RoundToInt(GetVirtualMinutes()) % 1440;
+            if (minutes < 0) minutes += 1440;
+            int h = minutes / 60, m = minutes % 60;
+            return $"{h:00}:{m:00}";
         }
-
-        private static string ToHHMM(int totalMinutes)
+        float GetVirtualMinutes()
         {
-            int hh = totalMinutes / 60;
-            int mm = totalMinutes % 60;
-            return $"{hh:00}:{mm:00}";
+            float dur = GetDur(_idx);
+            float t = dur <= 0f ? 0f : Mathf.Clamp01(_timer / dur);
+            return CurrentPhase switch
+            {
+                DayPhase.Night => 0f + t * 360f, // 00:00–06:00
+                DayPhase.Prep => 360f + t * 120f, // 06:00–08:00
+                DayPhase.Open => 480f + t * 480f, // 08:00–16:00
+                _ => 960f + t * 480f, // 16:00–24:00
+            };
         }
     }
 }
