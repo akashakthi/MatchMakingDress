@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 using UnityEngine.UI;
 using MMDress.Services;
 using MMDress.Runtime.Inventory;
@@ -24,6 +24,17 @@ namespace MMDress.Runtime.UI.EndOfDay
         [SerializeField] private bool autoFind = true;
 
         System.Action<EndOfDayArrived> _onEod;
+
+        [Header("Persist")]
+        [SerializeField] private bool usePlayerPrefs = true;
+        const string KEY = "MMDress.Stock.";
+
+        [Header("Runtime")]
+        [SerializeField] private int cloth;
+        [SerializeField] private int thread;
+        [SerializeField] private int[] tops;     // per type
+        [SerializeField] private int[] bottoms;  // per type
+
 
         private void Awake()
         {
@@ -69,6 +80,16 @@ namespace MMDress.Runtime.UI.EndOfDay
                 sbBot.Append($"Bottom{i + 1}: {stock.GetGarmentCount(GarmentSlot.Bottom, i)}");
             }
             if (bottomsText) bottomsText.text = sbBot.ToString();
+        }
+       
+        // ✅ Tambahan ini untuk dipakai EndOfDaySummaryPanel
+        public int TopTypes => tops != null ? tops.Length : 0;
+        public int BottomTypes => bottoms != null ? bottoms.Length : 0;
+
+        public void InitArrays(int topTypes, int bottomTypes)
+        {
+            if (tops == null || tops.Length != topTypes) tops = new int[topTypes];
+            if (bottoms == null || bottoms.Length != bottomTypes) bottoms = new int[bottomTypes];
         }
 
         // Panggil dari tombol "OK"

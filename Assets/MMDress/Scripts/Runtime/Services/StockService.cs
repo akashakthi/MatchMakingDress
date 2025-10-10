@@ -1,153 +1,115 @@
-using System;
+using System.Collections.Generic;
 using UnityEngine;
-using MMDress.Runtime.Inventory;
-using MMDress.Core;   // ServiceLocator.Events
-using MMDress.UI;     // InventoryChanged event
+using MMDress.Runtime.Inventory;   // CatalogSO, ItemSO, OutfitSlot, GarmentSlot, MaterialType
+using MMDress.Core;                // ServiceLocator
+using MMDress.UI;                  // InventoryChanged
+
+// alias untuk enum material
+using InvMaterialType = MMDress.Runtime.Inventory.MaterialType;
+using MMDress.Data;
 
 namespace MMDress.Services
 {
     [DisallowMultipleComponent]
     public sealed class StockService : MonoBehaviour
     {
-        [Header("Config (drag)")]
-        [SerializeField] private ProcurementConfigSO config;
+        [Header("Sumber Item (katalog yang sama dengan Fitting)")]
+        [SerializeField] private CatalogSO catalog;
+        [SerializeField] private bool autoFindCatalog = true;
 
-        [Header("Persist (PlayerPrefs)")]
-        [SerializeField] private bool usePlayerPrefs = true;
-        private const string PrefKey = "MMDress.Stock.v1";
-
-        // Materials
-        public int Cloth { get; private set; }
-        public int Thread { get; private set; }
-
-        // Garments (Top1..N, Bottom1..M)
-        private int[] _tops;    // length = config.topTypes
-        private int[] _bottoms; // length = config.bottomTypes
-
-        [Serializable]
-        private class SaveData
+        // Bahan (hanya 1 enum: Inventory.MaterialType)
+        private readonly Dictionary<InvMaterialType, int> _materials = new()
         {
-            public int cloth;
-            public int thread;
-            public int[] tops;
-            public int[] bottoms;
-        }
+            { InvMaterialType.Cloth,  0 },
+            { InvMaterialType.Thread, 0 },
+        };
 
-        private void Awake()
+        // Stok pakaian per ItemSO
+        private readonly Dictionary<ItemSO, int> _garments = new();
+
+        // Cache list per slot (urut dari CatalogSO)
+        private readonly List<ItemSO> _tops = new();
+        private readonly List<ItemSO> _bottoms = new();
+
+        public int TopTypes => _tops.Count;
+        public int BottomTypes => _bottoms.Count;
+
+        public int GetMaterial(InvMaterialType t) => _materials.TryGetValue(t, out var v) ? v : 0;
+        public void AddMaterial(InvMaterialType t, int delta)
         {
-            if (!config) Debug.LogWarning("[StockService] Config belum diassign.");
-        }
-
-        private void OnEnable()
-        {
-            int topN = Mathf.Max(1, config ? config.topTypes : 5);
-            int botN = Mathf.Max(1, config ? config.bottomTypes : 5);
-
-            _tops = new int[topN];
-            _bottoms = new int[botN];
-
-            if (usePlayerPrefs && PlayerPrefs.HasKey(PrefKey))
-            {
-                try
-                {
-                    var json = PlayerPrefs.GetString(PrefKey, "{}");
-                    var data = JsonUtility.FromJson<SaveData>(json) ?? new SaveData();
-                    Cloth = Mathf.Max(0, data.cloth);
-                    Thread = Mathf.Max(0, data.thread);
-
-                    if (data.tops != null)
-                        Array.Copy(data.tops, _tops, Math.Min(_tops.Length, data.tops.Length));
-                    if (data.bottoms != null)
-                        Array.Copy(data.bottoms, _bottoms, Math.Min(_bottoms.Length, data.bottoms.Length));
-                }
-                catch { }
-            }
-
-            PublishInventoryChanged();
-        }
-
-        private void OnDisable()
-        {
-            Save();
-        }
-
-        private void Save()
-        {
-            if (!usePlayerPrefs) return;
-            var data = new SaveData
-            {
-                cloth = Cloth,
-                thread = Thread,
-                tops = _tops,
-                bottoms = _bottoms
-            };
-            var json = JsonUtility.ToJson(data);
-            PlayerPrefs.SetString(PrefKey, json);
-        }
-
-        private void PublishInventoryChanged()
-        {
+            _materials[t] = Mathf.Max(0, GetMaterial(t) + delta);
             ServiceLocator.Events?.Publish(new InventoryChanged());
         }
 
-        // ===== API Material =====
-        public void AddMaterial(MaterialType t, int qty)
+        public ItemSO GetItem(GarmentSlot slot, int typeIndex)
         {
-            if (qty <= 0) return;
-            if (t == MaterialType.Cloth) Cloth += qty;
-            else Thread += qty;
-            Save(); PublishInventoryChanged();
-        }
-
-        public bool TryConsumeMaterial(MaterialType t, int qty)
-        {
-            if (qty <= 0) return false;
-            if (t == MaterialType.Cloth)
-            {
-                if (Cloth < qty) return false;
-                Cloth -= qty;
-            }
-            else
-            {
-                if (Thread < qty) return false;
-                Thread -= qty;
-            }
-            Save(); PublishInventoryChanged();
-            return true;
-        }
-
-        // ===== API Garment =====
-        public void AddGarment(GarmentSlot slot, int typeIndex, int qty)
-        {
-            if (qty <= 0) return;
-            if (slot == GarmentSlot.Top)
-            {
-                if (typeIndex < 0 || typeIndex >= _tops.Length) return;
-                _tops[typeIndex] += qty;
-            }
-            else
-            {
-                if (typeIndex < 0 || typeIndex >= _bottoms.Length) return;
-                _bottoms[typeIndex] += qty;
-            }
-            Save(); PublishInventoryChanged();
+            var list = (slot == GarmentSlot.Top) ? _tops : _bottoms;
+            return (typeIndex >= 0 && typeIndex < list.Count) ? list[typeIndex] : null;
         }
 
         public int GetGarmentCount(GarmentSlot slot, int typeIndex)
         {
-            if (slot == GarmentSlot.Top)
-            {
-                if (typeIndex < 0 || typeIndex >= _tops.Length) return 0;
-                return _tops[typeIndex];
-            }
-            else
-            {
-                if (typeIndex < 0 || typeIndex >= _bottoms.Length) return 0;
-                return _bottoms[typeIndex];
-            }
+            var it = GetItem(slot, typeIndex);
+            return it ? GetGarmentCount(it) : 0;
+        }
+        public int GetGarmentCount(ItemSO item) => _garments.TryGetValue(item, out var v) ? v : 0;
+        public bool HasAny(ItemSO item) => GetGarmentCount(item) > 0;
+
+        // ==== Crafting (1 kain + 1 benang per item) ====
+        public bool TryCraft(ItemSO item, int qty)
+        {
+            if (!item || qty <= 0) return false;
+
+            if (GetMaterial(InvMaterialType.Cloth) < qty) return false;
+            if (GetMaterial(InvMaterialType.Thread) < qty) return false;
+
+            AddMaterial(InvMaterialType.Cloth, -qty);
+            AddMaterial(InvMaterialType.Thread, -qty);
+
+            _garments[item] = GetGarmentCount(item) + qty;
+            ServiceLocator.Events?.Publish(new InventoryChanged());
+            return true;
         }
 
-        public int TopTypes => _tops?.Length ?? 0;
-        public int BottomTypes => _bottoms?.Length ?? 0;
+        public bool TryUncraft(ItemSO item, int qty, bool refundMaterials)
+        {
+            if (!item || qty <= 0) return false;
+
+            int cur = GetGarmentCount(item);
+            if (cur < qty) return false;
+
+            _garments[item] = cur - qty;
+
+            if (refundMaterials)
+            {
+                AddMaterial(InvMaterialType.Cloth, +qty);
+                AddMaterial(InvMaterialType.Thread, +qty);
+            }
+
+            ServiceLocator.Events?.Publish(new InventoryChanged());
+            return true;
+        }
+
+        private void Awake()
+        {
+            if (autoFindCatalog && !catalog)
+                catalog = FindObjectOfType<CatalogSO>(true);
+            RebuildFromCatalog();
+        }
+
+        private void RebuildFromCatalog()
+        {
+            _tops.Clear(); _bottoms.Clear();
+
+            if (!catalog || catalog.items == null) return;
+            foreach (var it in catalog.items)
+            {
+                if (!it) continue;
+                if (!_garments.ContainsKey(it)) _garments[it] = 0;
+
+                if (it.slot == OutfitSlot.Top) _tops.Add(it);
+                else if (it.slot == OutfitSlot.Bottom) _bottoms.Add(it);
+            }
+        }
     }
 }

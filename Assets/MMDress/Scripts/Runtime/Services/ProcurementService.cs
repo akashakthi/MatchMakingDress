@@ -1,124 +1,96 @@
 using UnityEngine;
-using MMDress.Runtime.Inventory;
-using MMDress.Runtime.Timer;
-using MMDress.Core;
-using MMDress.UI;
+using MMDress.Core;                  // ServiceLocator
+using MMDress.Runtime.Inventory;     // ItemSO, GarmentSlot, MaterialType
+using System;
 
+// alias untuk kejelasan
+using InvMaterialType = MMDress.Runtime.Inventory.MaterialType;
 
 namespace MMDress.Services
 {
     [DisallowMultipleComponent]
     public sealed class ProcurementService : MonoBehaviour
     {
-        [Header("Refs (drag)")]
-        [SerializeField] private ProcurementConfigSO config;
-        [SerializeField] private TimeOfDayService timeOfDay;
+        [Header("Refs")]
         [SerializeField] private EconomyService economy;
         [SerializeField] private StockService stock;
 
-        [Header("State")]
-        [SerializeField] private bool setStartingMoneyOnFirstPrep = true;
-        private bool _startMoneyApplied = false;
+        [Header("Harga bahan (per unit)")]
+        [SerializeField, Min(0)] private int priceCloth = 100;
+        [SerializeField, Min(0)] private int priceThread = 100;
 
-        public bool CanShop => timeOfDay && timeOfDay.CurrentPhase == DayPhase.Prep;
-
-        private void Awake()
+        private void Reset()
         {
-            if (!timeOfDay) timeOfDay = FindObjectOfType<TimeOfDayService>(true);
-            if (!economy) economy = FindObjectOfType<EconomyService>(true);
-            if (!stock) stock = FindObjectOfType<StockService>(true);
+            economy = FindObjectOfType<EconomyService>(true);
+            stock = FindObjectOfType<StockService>(true);
         }
 
-        private void OnEnable()
-        {
-            if (timeOfDay) timeOfDay.DayPhaseChanged += OnPhaseChanged;
-        }
+        // === DIPAKAI PREP SHOP PANEL (wraps) ===
+        public int GetMaterial(InvMaterialType t) => stock ? stock.GetMaterial(t) : 0;
+        public int GetTopTypes() => stock ? stock.TopTypes : 0;
+        public int GetBottomTypes() => stock ? stock.BottomTypes : 0;
+        public int GetGarmentCount(GarmentSlot slot, int typeIndex)
+            => stock ? stock.GetGarmentCount(slot, typeIndex) : 0;
 
-        private void OnDisable()
+        // === BAHAN ===
+        public bool BuyMaterial(InvMaterialType t, int qty)
         {
-            if (timeOfDay) timeOfDay.DayPhaseChanged -= OnPhaseChanged;
-        }
+            if (!stock || !economy || qty <= 0) return false;
 
-        private void OnPhaseChanged(DayPhase phase)
-        {
-            if (phase == DayPhase.Prep)
+            int unit = (t == InvMaterialType.Cloth) ? priceCloth : priceThread;
+            int total = unit * qty;
+
+            // gunakan Spend/CanSpend sesuai EconomyService
+            if (!economy.Spend(total))
             {
-                // Terapkan uang awal saat Prep pertama (sekali saja)
-                if (setStartingMoneyOnFirstPrep && !_startMoneyApplied && config)
-                {
-                    economy?.SetBalance(config.startingMoney);
-                    _startMoneyApplied = true;
-                }
-
-                // Opsional: sinkronkan durasi prep ke TimeOfDay kalau mau
-                if (config && timeOfDay)
-                {
-                    // kalau TimeOfDayService kamu expose setter ke prepRealSeconds, pakai di sini.
-                    // otherwise, set via Inspector.
-                }
-            }
-
-            if (phase == DayPhase.Closed)
-            {
-                // bisa publish event khusus ringkasan stok kalau perlu
-                ServiceLocator.Events?.Publish(new EndOfDayArrived());
-            }
-        }
-
-        // ======= PUBLIC API untuk UI =======
-
-        public bool BuyMaterial(MaterialType type, int qty)
-        {
-            if (!CanShop || qty <= 0 || config == null || economy == null || stock == null)
-            {
-                ServiceLocator.Events?.Publish(new PurchaseFailed("Tidak bisa belanja saat ini."));
+                ServiceLocator.Events?.Publish(new PurchaseFailed("Uang tidak cukup"));
                 return false;
             }
 
-            int price = (type == MaterialType.Cloth) ? config.clothPrice : config.threadPrice;
-            int cost = price * qty;
-
-            if (!economy.TrySpend(cost))
-            {
-                ServiceLocator.Events?.Publish(new PurchaseFailed("Uang tidak cukup."));
-                return false;
-            }
-
-            stock.AddMaterial(type, qty);
-            ServiceLocator.Events?.Publish(new PurchaseSucceeded(type, qty, cost));
+            stock.AddMaterial(t, qty);
+            ServiceLocator.Events?.Publish(new PurchaseSucceeded());
             return true;
         }
 
-        /// <summary>Craft baju: butuh 1 Cloth + 1 Thread per 1 item.</summary>
+        // === PAKAIAN (CRAFT 1 kain + 1 benang per item) ===
         public bool Craft(GarmentSlot slot, int typeIndex, int qty)
         {
-            if (!CanShop || qty <= 0 || stock == null)
+            if (!stock || qty <= 0) return false;
+
+            var item = stock.GetItem(slot, typeIndex);
+            if (!item)
             {
-                ServiceLocator.Events?.Publish(new CraftFailed("Tidak bisa craft saat ini."));
+                ServiceLocator.Events?.Publish(new CraftFailed("Item tidak ada"));
                 return false;
             }
 
-            // Cek material cukup?
-            if (stock.Cloth < qty || stock.Thread < qty)
+            if (!stock.TryCraft(item, qty))
             {
-                ServiceLocator.Events?.Publish(new CraftFailed("Material tidak cukup (butuh 1 Cloth + 1 Thread per item)."));
+                ServiceLocator.Events?.Publish(new CraftFailed("Bahan kurang (butuh 1 Kain + 1 Benang)"));
                 return false;
             }
 
-            // Konsumsi material & tambahkan garment
-            if (!stock.TryConsumeMaterial(MaterialType.Cloth, qty)) { ServiceLocator.Events?.Publish(new CraftFailed("Cloth kurang.")); return false; }
-            if (!stock.TryConsumeMaterial(MaterialType.Thread, qty)) { ServiceLocator.Events?.Publish(new CraftFailed("Thread kurang.")); return false; }
-
-            stock.AddGarment(slot, typeIndex, qty);
-            ServiceLocator.Events?.Publish(new CraftSucceeded(slot, typeIndex, qty));
+            ServiceLocator.Events?.Publish(new CraftSucceeded());
             return true;
         }
 
-        // Getter util untuk UI
-        public int GetGarmentCount(GarmentSlot slot, int typeIndex) => stock?.GetGarmentCount(slot, typeIndex) ?? 0;
-        public int GetTopTypes() => stock?.TopTypes ?? (config ? config.topTypes : 0);
-        public int GetBottomTypes() => stock?.BottomTypes ?? (config ? config.bottomTypes : 0);
-        public int GetMaterial(MaterialType t) => (t == MaterialType.Cloth) ? (stock?.Cloth ?? 0) : (stock?.Thread ?? 0);
-        public int GetPrice(MaterialType t) => (t == MaterialType.Cloth) ? (config ? config.clothPrice : 0) : (config ? config.threadPrice : 0);
+        public bool Uncraft(GarmentSlot slot, int typeIndex, int qty, bool refundMaterials = true)
+        {
+            if (!stock || qty <= 0) return false;
+
+            var item = stock.GetItem(slot, typeIndex);
+            if (!item) return false;
+
+            bool ok = stock.TryUncraft(item, qty, refundMaterials);
+            if (ok) ServiceLocator.Events?.Publish(new CraftSucceeded());
+            else ServiceLocator.Events?.Publish(new CraftFailed("Stok 0"));
+            return ok;
+        }
     }
+
+    // Event payload (tinggal di namespace Services saja agar tidak bentrok)
+    public struct PurchaseSucceeded { }
+    public struct PurchaseFailed { public string reason; public PurchaseFailed(string r) { reason = r; } }
+    public struct CraftSucceeded { }
+    public struct CraftFailed { public string reason; public CraftFailed(string r) { reason = r; } }
 }

@@ -1,34 +1,25 @@
 using UnityEngine;
-using MMDress.Core;   // ServiceLocator.Events
-using MMDress.UI;     // MoneyChanged, CustomerCheckout
+using MMDress.Core;     // ServiceLocator.Events
+using MMDress.UI;       // MoneyChanged  // CustomerCheckout (opsional payout)
 
 namespace MMDress.Services
 {
-    /// <summary>
-    /// Dompet ekonomi game: sumber kebenaran saldo uang.
-    /// - Bisa di-set saldo awal (untuk start of day via ProcurementService).
-    /// - Bisa Add/TrySpend untuk pembelian bahan.
-    /// - (Opsional) Payout sederhana saat CustomerCheckout (full/partial/empty).
-    /// Mempublish MoneyChanged agar MoneyHudView tetap sinkron.
-    /// </summary>
     [DisallowMultipleComponent]
     public sealed class EconomyService : MonoBehaviour
     {
         [Header("Balance (runtime)")]
-        [SerializeField] private int _balance = 0;
-        public int Balance => _balance;
+        [SerializeField] private int balance;
 
         [Header("Payout saat CustomerCheckout (opsional)")]
-        [SerializeField] private bool enablePayoutOnCheckout = true;
-        [Tooltip("Bayaran jika outfit lengkap (Top & Bottom).")]
-        [SerializeField] private int payoutFull = 200;
-        [Tooltip("Bayaran jika parsial (hanya Top atau Bottom).")]
-        [SerializeField] private int payoutPartial = 100;
-        [Tooltip("Bayaran jika kosong (0 item).")]
-        [SerializeField] private int payoutEmpty = 0;
+        [SerializeField] private bool enablePayoutOnCheckout = false;
+        [SerializeField] private int payoutFull = 200;     // 2 item
+        [SerializeField] private int payoutPartial = 0;    // 1 item (kita nol-kan, reputasi -1%)
+        [SerializeField] private int payoutEmpty = 0;      // 0 item
+        [SerializeField, Min(0f)] private float receiveWindowSec = 0.25f;
 
-        // cache subscriber
-        private System.Action<CustomerCheckout> _onCheckout;
+        public int Balance => balance;
+
+        System.Action<CustomerCheckout> _onCheckout;
 
         private void OnEnable()
         {
@@ -36,58 +27,40 @@ namespace MMDress.Services
             {
                 _onCheckout = e =>
                 {
-                    int items = Mathf.Max(0, e.itemsEquipped);
-                    int delta =
-                        (items >= 2) ? payoutFull :
-                        (items == 1) ? payoutPartial :
-                                       payoutEmpty;
-
-                    if (delta != 0) Add(delta);
-                    else PublishMoneyChanged(0); // tetap publish agar HUD sinkron jika perlu
+                    int amt = e.itemsEquipped >= 2 ? payoutFull :
+                              e.itemsEquipped == 1 ? payoutPartial : payoutEmpty;
+                    if (amt > 0) Add(amt);
                 };
-                ServiceLocator.Events?.Subscribe(_onCheckout);
+                ServiceLocator.Events.Subscribe(_onCheckout);
             }
-
-            // Publish sekali di awal supaya HUD render saldo saat scene start
-            PublishMoneyChanged(0);
         }
 
         private void OnDisable()
         {
-            if (_onCheckout != null) ServiceLocator.Events?.Unsubscribe(_onCheckout);
+            if (_onCheckout != null) ServiceLocator.Events.Unsubscribe(_onCheckout);
         }
 
-        // ===== API Dompet =====
+        // ==== API ====
+        public bool CanSpend(int amount) => amount <= balance;
 
-        /// <summary>Set saldo eksplisit (dipakai saat start of day). Selalu publish MoneyChanged.</summary>
-        public void SetBalance(int value)
-        {
-            _balance = Mathf.Max(0, value);
-            PublishMoneyChanged(0);
-        }
-
-        /// <summary>Tambah saldo. Nilai negatif juga boleh (akan dipaksa minimal 0).</summary>
-        public void Add(int amount)
-        {
-            _balance = Mathf.Max(0, _balance + amount);
-            PublishMoneyChanged(amount);
-        }
-
-        /// <summary>Coba kurangi saldo. Berhasil: publish MoneyChanged.</summary>
-        public bool TrySpend(int amount)
+        public bool Spend(int amount)
         {
             if (amount <= 0) return true;
-            if (_balance < amount) return false;
-            _balance -= amount;
-            PublishMoneyChanged(-amount);
+            if (balance < amount) return false;
+            balance -= amount;
+            ServiceLocator.Events?.Publish(new MoneyChanged(-amount, balance));
             return true;
         }
 
-        // ===== Helper =====
-        private void PublishMoneyChanged(int delta)
+        public void Add(int amount)
         {
-            ServiceLocator.Events?.Publish(new MoneyChanged { amount = delta, balance = _balance });
+            if (amount == 0) return;
+            balance += amount;
+            ServiceLocator.Events?.Publish(new MoneyChanged(amount, balance));
         }
 
+        // Convenience untuk debug
+        [ContextMenu("Add 1000")]
+        private void _DebugAdd() => Add(1000);
     }
 }
