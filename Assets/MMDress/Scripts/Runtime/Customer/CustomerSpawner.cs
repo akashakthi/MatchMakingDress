@@ -1,14 +1,9 @@
 ﻿using System.Collections.Generic;
 using UnityEngine;
 using MMDress.Core;
-// tambahkan ini agar mudah memanggil ClearEquipped / OutfitSlot
-using MMDress.Character;
-using MMDress.Data;
 
 namespace MMDress.Customer
 {
-    /// Mengelola siklus hidup customer:
-    /// spawn -> (queue/seat) -> dilayani -> pergi -> kembali ke pool/destroy.
     [DisallowMultipleComponent]
     [AddComponentMenu("MMDress/Gameplay/Customer Spawner")]
     public class CustomerSpawner : MonoBehaviour
@@ -16,13 +11,8 @@ namespace MMDress.Customer
         [Header("References")]
         [SerializeField] private Transform spawnPoint;
         [SerializeField] private Transform exitPoint;
-
-        [Tooltip("Parent berisi anak-anak Transform sebagai posisi seat.")]
         [SerializeField] private Transform seatsRoot;
-
-        [Tooltip("Parent berisi anak-anak Transform sebagai posisi antrian.")]
         [SerializeField] private Transform queueRoot;
-
         [SerializeField] private GameObject customerPrefab;
 
         [Header("Rules")]
@@ -36,13 +26,11 @@ namespace MMDress.Customer
 
         readonly List<Transform> _seats = new();
         readonly List<Transform> _queue = new();
-
         bool[] _seatOccupied;
         CustomerController[] _queueOcc;
 
         readonly List<CustomerController> _active = new();
         SimplePool<CustomerController> _pool;
-
         float _spawnAccu;
 
         void OnValidate() => CollectPoints();
@@ -59,20 +47,9 @@ namespace MMDress.Customer
                     {
                         c.gameObject.SetActive(true);
                         if (spawnPoint) c.transform.position = spawnPoint.position;
-
-                        // Reset outfit TANPA bergantung pada ResetAll()
-                        var outfit = c.GetComponentInChildren<CharacterOutfitController>(true);
-                        if (outfit != null)
-                        {
-                            outfit.RevertPreview();
-                            outfit.ClearEquipped(OutfitSlot.Top);
-                            outfit.ClearEquipped(OutfitSlot.Bottom);
-                        }
+                        // tidak perlu reset view outfit
                     },
-                    onRelease: (c) =>
-                    {
-                        c.gameObject.SetActive(false);
-                    }
+                    onRelease: (c) => c.gameObject.SetActive(false)
                 );
 
                 for (int i = 0; i < prewarm; i++)
@@ -88,13 +65,11 @@ namespace MMDress.Customer
         void Update()
         {
             if (!IsReadyToSpawn()) return;
-
             _spawnAccu += Time.deltaTime;
 
             while (_spawnAccu >= spawnInterval)
             {
                 _spawnAccu -= spawnInterval;
-
                 if (_active.Count >= HardCap()) break;
 
                 int si = FindFreeSeat();
@@ -107,12 +82,10 @@ namespace MMDress.Customer
             }
         }
 
-        // ===== helpers =====
         bool IsReadyToSpawn()
         {
             if (!customerPrefab || !spawnPoint || !exitPoint) return false;
-            if (_seats.Count == 0) return false;
-            return true;
+            return _seats.Count > 0;
         }
 
         int HardCap()
@@ -126,7 +99,9 @@ namespace MMDress.Customer
             var go = Instantiate(customerPrefab);
             return go.GetComponent<CustomerController>();
         }
+
         CustomerController Get() => usePooling ? _pool.Get() : CreateNew();
+
         void Release(CustomerController c)
         {
             _active.Remove(c);
@@ -140,6 +115,7 @@ namespace MMDress.Customer
                 if (!_seatOccupied[i]) return i;
             return -1;
         }
+
         int FindFreeQueue()
         {
             if (_queueOcc == null || _queueOcc.Length == 0) return -1;
@@ -156,7 +132,6 @@ namespace MMDress.Customer
 
             float waitSec = Random.Range(waitSecondsRange.x, waitSecondsRange.y);
 
-            // PAKAI POSISIONAL sesuai signature skripmu
             c.InitSeat(
                 _seats[seatIndex].position,
                 exitPoint.position,
@@ -175,7 +150,6 @@ namespace MMDress.Customer
 
             float waitSec = Random.Range(waitSecondsRange.x, waitSecondsRange.y);
 
-            // PAKAI POSISIONAL sesuai signature skripmu
             c.InitQueue(
                 _queue[queueIndex].position,
                 exitPoint.position,

@@ -3,26 +3,32 @@ using UnityEngine.UI;
 using MMDress.Core;
 using MMDress.Gameplay;
 using MMDress.Data;
+using MMDress.UI; // <-- penting untuk CharacterOutfitController
 
 namespace MMDress.UI
 {
-    /// UI Fitting: buka saat Customer dipilih, pilih item -> Preview,
-    /// tekan Equip -> pasang permanen, Close -> revert preview & lanjut leave.
+    /// UI Fitting (1 list horizontal + filter kategori):
+    /// - Klik Baju/Rok -> list memuat item slot terkait
+    /// - Klik item -> preview di karakter (UI Image)
+    /// - Equip -> commit 1 item preview aktif
+    /// - Close -> kirim jumlah item ter-equip ke CustomerController
     [DisallowMultipleComponent]
     [AddComponentMenu("MMDress/UI/Fitting Room UI")]
-    public class FittingRoomUI : MonoBehaviour
+    public sealed class FittingRoomUI : MonoBehaviour
     {
         #region Inspector
 
         [Header("Panel Root")]
-        [SerializeField] private GameObject panelRoot;
+        [SerializeField] private GameObject panelRoot; // Biarkan aktif; sembunyikan via CanvasGroup
 
         [Header("Data")]
         [SerializeField] private CatalogSO catalog;
 
-        [Header("Grids")]
-        [SerializeField] private ItemGridView topGrid;
-        [SerializeField] private ItemGridView bottomGrid;
+        [Header("List (Horizontal)")]
+        [SerializeField] private ItemGridView listView;
+
+        [Header("Preview (UI)")]
+        [SerializeField] private CharacterOutfitController preview;
 
         [Header("Buttons")]
         [SerializeField] private Button tabTopButton;
@@ -37,137 +43,156 @@ namespace MMDress.UI
 
         #region Runtime state
 
-        Customer.CustomerController _current;
-        ItemSO _previewItem;
-        OutfitSlot _activeTab = OutfitSlot.Top;
+        private Customer.CustomerController _current;
+        private ItemSO _previewItem;
+        private OutfitSlot _activeTab = OutfitSlot.Top;
+
+        // State commit (hasil Equip)
+        private ItemSO _equippedTop;
+        private ItemSO _equippedBottom;
+
+        private CanvasGroup _cg;
 
         #endregion
 
         #region Unity
 
-        void Awake()
+        private void Awake()
         {
-            if (autoFindInChildren)
-            {
-                if (!panelRoot) panelRoot = gameObject;
-                if (!topGrid) topGrid = transform.Find("TopGrid")?.GetComponent<ItemGridView>();
-                if (!bottomGrid) bottomGrid = transform.Find("BottomGrid")?.GetComponent<ItemGridView>();
-                if (!equipButton) equipButton = transform.Find("EquipButton")?.GetComponent<Button>();
-                if (!closeButton) closeButton = transform.Find("CloseButton")?.GetComponent<Button>();
-                if (!tabTopButton) tabTopButton = transform.Find("TabTopButton")?.GetComponent<Button>();
-                if (!tabBottomButton) tabBottomButton = transform.Find("TabBottomButton")?.GetComponent<Button>();
-            }
+            _cg = GetComponent<CanvasGroup>();
+            if (!_cg) _cg = gameObject.AddComponent<CanvasGroup>();
 
-            if (panelRoot) panelRoot.SetActive(false);
+            if (autoFindInChildren && !listView)
+                listView = GetComponentInChildren<ItemGridView>(true);
 
             if (tabTopButton) tabTopButton.onClick.AddListener(() => ShowTab(OutfitSlot.Top));
             if (tabBottomButton) tabBottomButton.onClick.AddListener(() => ShowTab(OutfitSlot.Bottom));
             if (equipButton) equipButton.onClick.AddListener(EquipPreview);
             if (closeButton) closeButton.onClick.AddListener(Close);
 
-            if (topGrid) topGrid.OnItemSelected = OnItemClicked;
-            if (bottomGrid) bottomGrid.OnItemSelected = OnItemClicked;
+            if (listView != null)
+                listView.OnItemSelected = OnItemClicked;
 
-            ServiceLocator.Events.Subscribe<CustomerSelected>(OnSelected);
-            UpdateEquipButton();
-        }
-
-        void OnDestroy()
-        {
-            ServiceLocator.Events.Unsubscribe<CustomerSelected>(OnSelected);
+            SetVisible(false); // sembunyikan lewat alpha
         }
 
         #endregion
 
-        #region Event handlers
+        #region Public API
 
-        void OnSelected(CustomerSelected e)
+        // Dipanggil dari CustomerController.OnClick()
+        public void Open(Customer.CustomerController target)
         {
-            _current = e.customer;
+            _current = target;
             _previewItem = null;
+            _equippedTop = null;
+            _equippedBottom = null;
 
-            if (panelRoot) panelRoot.SetActive(true);
+            if (preview) preview.Clear();
+
+            SetVisible(true);
+            ShowTab(OutfitSlot.Top);
+
             ServiceLocator.Events.Publish(new FittingUIOpened());
-
-            if (topGrid)
-            {
-                topGrid.SetCatalog(catalog);
-                topGrid.Refresh();
-            }
-            if (bottomGrid)
-            {
-                bottomGrid.SetCatalog(catalog);
-                bottomGrid.Refresh();
-            }
-
-            ShowTab(_activeTab);
-            UpdateEquipButton();
-        }
-
-        void OnItemClicked(ItemSO item)
-        {
-            _previewItem = item;
-            _current?.Outfit.TryOn(item); // preview di karakter
             UpdateEquipButton();
         }
 
         #endregion
 
-        #region UI logic
+        #region UI Helpers
 
-        void ShowTab(OutfitSlot slot)
+        private void SetVisible(bool on)
+        {
+            if (_cg)
+            {
+                _cg.alpha = on ? 1f : 0f;
+                _cg.interactable = on;
+                _cg.blocksRaycasts = on;
+            }
+            if (panelRoot) panelRoot.SetActive(true); // keep alive
+        }
+
+        private void RefreshPreviewFromState()
+        {
+            if (!preview) return;
+            preview.ApplyEquipped(_equippedTop, _equippedBottom);
+        }
+
+        private void ShowTab(OutfitSlot slot)
         {
             _activeTab = slot;
-            bool isTop = slot == OutfitSlot.Top;
 
-            if (topGrid) topGrid.gameObject.SetActive(isTop);
-            if (bottomGrid) bottomGrid.gameObject.SetActive(!isTop);
+            if (listView)
+            {
+                listView.SetCatalog(catalog);
+                listView.SetSlot(slot);
+                var equipped = (slot == OutfitSlot.Top) ? _equippedTop : _equippedBottom;
+                listView.Refresh(equipped);
+            }
 
-            if (tabTopButton) tabTopButton.interactable = !isTop;
-            if (tabBottomButton) tabBottomButton.interactable = isTop;
+            // Pastikan preview menampilkan kombinasi equip terkini
+            RefreshPreviewFromState();
+
+            if (tabTopButton) tabTopButton.interactable = (slot != OutfitSlot.Top);
+            if (tabBottomButton) tabBottomButton.interactable = (slot != OutfitSlot.Bottom);
 
             UpdateEquipButton();
         }
 
-        void UpdateEquipButton()
+        private void UpdateEquipButton()
         {
-            if (!equipButton) return;
-            equipButton.interactable = (_previewItem != null);
+            if (equipButton) equipButton.interactable = (_previewItem != null);
         }
 
-        void EquipPreview()
+        #endregion
+
+        #region Callbacks
+
+        private void OnItemClicked(ItemSO item)
         {
-            if (_current == null || _previewItem == null) return;
+            _previewItem = item;
 
-            _current.Outfit.Equip(_previewItem);
+            // Preview langsung di UI (Image)
+            if (preview) preview.TryOn(item);
 
-            // Publish event agar komponen lain dapat merespon (FX / badge / paket)
-            ServiceLocator.Events.Publish(
-                new ItemEquipped(_current, _previewItem.slot, _previewItem)
-            );
+            ServiceLocator.Events.Publish(new ItemPreviewed(item));
+            UpdateEquipButton();
+        }
 
-            // Setelah equip, anggap tidak ada preview aktif
+        private void EquipPreview()
+        {
+            if (_previewItem == null) return;
+
+            // Commit ke state lokal
+            if (_previewItem.slot == OutfitSlot.Top) _equippedTop = _previewItem;
+            if (_previewItem.slot == OutfitSlot.Bottom) _equippedBottom = _previewItem;
+
+            // Broadcast sesuai signature event di project-mu
+            if (_current != null)
+                ServiceLocator.Events.Publish(
+                    new ItemEquipped(_current, _previewItem.slot, _previewItem)
+                );
+
             _previewItem = null;
+
+            // Tampilkan hasil commit
+            RefreshPreviewFromState();
             UpdateEquipButton();
         }
 
         public void Close()
         {
-            if (_current != null)
-            {
-                // GANTI: commit semua preview jadi equip
-                _current.Outfit.EquipAllPreview();
+            int equippedCount = (_equippedTop ? 1 : 0) + (_equippedBottom ? 1 : 0);
 
-                // lanjut flow pergi
-                _current.FinishFitting();
-            }
+            if (_current != null)
+                _current.FinishFitting(equippedCount);
 
             ServiceLocator.Events.Publish(new FittingUIClosed());
+
             _current = null;
             _previewItem = null;
-            if (panelRoot) panelRoot.SetActive(false);
+            SetVisible(false);
         }
-
 
         #endregion
     }

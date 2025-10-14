@@ -1,133 +1,68 @@
-using UnityEngine;
+ï»¿using UnityEngine;
+using UnityEngine.UI;
 using MMDress.Data;
 
-namespace MMDress.Character
+namespace MMDress.UI
 {
-    /// Outfit 2D sederhana (Top/Bottom) dengan Preview & Equip.
+    /// Preview outfit versi UI (Canvas): cukup ganti sprite pada 2 Image.
     [DisallowMultipleComponent]
-    public class CharacterOutfitController : MonoBehaviour
+    [AddComponentMenu("MMDress/UI/UI Character Outfit Preview")]
+    public sealed class CharacterOutfitController : MonoBehaviour
     {
-        [Header("Anchors")]
-        [SerializeField] private Transform topAnchor;
-        [SerializeField] private Transform bottomAnchor;
+        [Header("Anchors (UI Image)")]
+        [SerializeField] private Image topImage;     // drag: Image baju/kebaya
+        [SerializeField] private Image bottomImage;  // drag: Image rok
 
-        private SpriteRenderer _topR, _botR;
-        private ItemSO _eqTop, _eqBot;     // equipped
-        private ItemSO _prevTop, _prevBot; // last preview
+        [Header("Options")]
+        [SerializeField] private bool preserveAspect = true;
 
-        void Awake()
+        private void Reset()
         {
-            _topR = EnsureRenderer(topAnchor);
-            _botR = EnsureRenderer(bottomAnchor);
+            if (!topImage) topImage = transform.Find("TopGrid")?.GetComponent<Image>()
+                                 ?? transform.Find("TopImage")?.GetComponent<Image>();
+            if (!bottomImage) bottomImage = transform.Find("BottomGrid")?.GetComponent<Image>()
+                                 ?? transform.Find("BottomImage")?.GetComponent<Image>();
         }
 
-        SpriteRenderer EnsureRenderer(Transform t)
+        public void Clear()
         {
-            if (!t)
-            {
-                Debug.LogWarning("[MMDress] Missing outfit anchor.");
-                return null;
-            }
-            var r = t.GetComponent<SpriteRenderer>();
-            if (!r) r = t.gameObject.AddComponent<SpriteRenderer>();
-            // tidak memaksa material/warna—pakai setting prefab/material project
-            return r;
+            SetImage(topImage, null);
+            SetImage(bottomImage, null);
         }
 
-        // ===== Public API =====
         public void TryOn(ItemSO item)
         {
             if (!item) return;
-            Apply(item);
-            if (item.slot == OutfitSlot.Top) _prevTop = item; else _prevBot = item;
-        }
 
-        public void Equip(ItemSO item)
-        {
-            if (!item) return;
-            Apply(item);
-            if (item.slot == OutfitSlot.Top) { _eqTop = item; _prevTop = null; }
-            else { _eqBot = item; _prevBot = null; }
-        }
-
-        /// Batalkan preview; jika belum ada equip untuk slot itu, kosongkan.
-        public void RevertPreview()
-        {
-            if (_prevTop)
+            switch (item.slot)
             {
-                if (_eqTop) Apply(_eqTop); else ClearEquipped(OutfitSlot.Top);
-            }
-            if (_prevBot)
-            {
-                if (_eqBot) Apply(_eqBot); else ClearEquipped(OutfitSlot.Bottom);
-            }
-            _prevTop = _prevBot = null;
-        }
-
-        /// Kosongkan sprite pada slot & lupakan equip-nya.
-        public void ClearEquipped(OutfitSlot slot)
-        {
-            if (slot == OutfitSlot.Top)
-            {
-                _eqTop = null;
-                if (_topR) _topR.sprite = null;
-            }
-            else
-            {
-                _eqBot = null;
-                if (_botR) _botR.sprite = null;
-            }
-        }
-        // ===== Public API tambahan =====
-        public void EquipAllPreview()
-        {
-            // Jika sebelumnya sempat preview Top, commit jadi equip
-            if (_prevTop)
-            {
-                Apply(_prevTop);
-                _eqTop = _prevTop;
-                _prevTop = null;
-            }
-            // Jika sebelumnya sempat preview Bottom, commit jadi equip
-            if (_prevBot)
-            {
-                Apply(_prevBot);
-                _eqBot = _prevBot;
-                _prevBot = null;
+                case OutfitSlot.Top:
+                    SetImage(topImage, item.sprite);
+                    break;
+                case OutfitSlot.Bottom:
+                    SetImage(bottomImage, item.sprite);
+                    break;
             }
         }
 
-        /// Reset total (untuk pooling): bersihkan preview & equip kedua slot.
-        public void ResetAll()
+        public void ApplyEquipped(ItemSO top, ItemSO bottom)
         {
-            _prevTop = _prevBot = null;
-            _eqTop = _eqBot = null;
-
-            if (_topR) _topR.sprite = null;
-            if (_botR) _botR.sprite = null;
+            SetImage(topImage, top ? top.sprite : null);
+            SetImage(bottomImage, bottom ? bottom.sprite : null);
         }
 
-        // ===== Internal =====
-        void Apply(ItemSO item)
+        private void SetImage(Image img, Sprite s)
         {
-            if (!item) return;
+            if (!img) return;
+            img.sprite = s;
+            img.enabled = (s != null);
+            img.type = Image.Type.Simple;
+            img.raycastTarget = false;              // jangan halangi klik di bawahnya
+            if (preserveAspect) img.preserveAspect = true;
 
-            var a = (item.slot == OutfitSlot.Top) ? topAnchor : bottomAnchor;
-            var r = (item.slot == OutfitSlot.Top) ? _topR : _botR;
-
-            if (r) r.sprite = item.sprite;
-
-            if (a)
-            {
-                a.localPosition = item.localPos;
-                a.localScale = item.localScale;
-                a.localRotation = Quaternion.Euler(0f, 0f, item.localRotZ);
-            }
-        }
-
-        public MMDress.Data.ItemSO GetEquipped(MMDress.Data.OutfitSlot slot)
-        {
-            return (slot == MMDress.Data.OutfitSlot.Top) ? _eqTop : _eqBot;
+            var c = img.color;                      // pastikan tampak jelas
+            c.a = (s != null) ? 1f : c.a;
+            img.color = c;
         }
     }
 }

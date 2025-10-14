@@ -15,7 +15,7 @@ MonoBehaviour:
   id: top_3403
   displayName: Top 3
   slot: 0
-  sprite: {fileID: 1394071765756982362, guid: 18dd59d1850865641a138214a716b348, type: 3}
+  sprite: {fileID: -3476708935611197262, guid: 7031ecb721e79224ca799dc75e76ef58, type: 3}
   localPos: {x: 0, y: 1.5, z: 0}
   localScale: {x: 1, y: 1, z: 1}
   localRotZ: 0

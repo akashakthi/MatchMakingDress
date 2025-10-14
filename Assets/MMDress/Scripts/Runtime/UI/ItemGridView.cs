@@ -1,20 +1,23 @@
-using System.Collections.Generic;
+ï»¿using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 using MMDress.Data;
+using MMDress.Services;   // untuk angka stok
 
 namespace MMDress.UI
 {
+    /// List horizontal generik. Content = HorizontalLayoutGroup + ContentSizeFitter(Horizontal=Preferred).
     [DisallowMultipleComponent]
-    public class ItemGridView : MonoBehaviour
+    public sealed class ItemGridView : MonoBehaviour
     {
         [Header("Sources")]
         [SerializeField] private CatalogSO catalog;
         [SerializeField] private OutfitSlot slot = OutfitSlot.Top;
+        [SerializeField] private StockService stock; // opsional: isi untuk menampilkan stok
 
         [Header("UI")]
-        [SerializeField] private Transform content;          // punya GridLayoutGroup
-        [SerializeField] private GameObject buttonPrefab;    // <— sekarang GameObject, bukan ItemButtonView
+        [SerializeField] private Transform content;       // parent untuk tombol
+        [SerializeField] private GameObject buttonPrefab; // root harus ada ItemButtonView
 
         private readonly List<ItemButtonView> _buttons = new();
         private ItemSO _selected;
@@ -22,6 +25,7 @@ namespace MMDress.UI
         public System.Action<ItemSO> OnItemSelected;
 
         public void SetCatalog(CatalogSO c) => catalog = c;
+        public void SetSlot(OutfitSlot s) => slot = s;
 
         public void Refresh(ItemSO currentSelected = null)
         {
@@ -37,9 +41,9 @@ namespace MMDress.UI
             for (int i = 0; i < _buttons.Count; i++)
             {
                 var btn = _buttons[i];
-                if (!btn) { continue; }
+                if (!btn) continue;
 
-                btn.Clicked -= OnClickedProxy; // pastikan tak dobel
+                btn.Clicked -= OnClickedProxy;
 
                 bool active = i < items.Count;
                 btn.gameObject.SetActive(active);
@@ -47,12 +51,15 @@ namespace MMDress.UI
 
                 var data = items[i];
                 btn.Bind(data);
+
+                if (stock) btn.BindStock(stock.GetGarmentCount(data));
+
                 btn.SetSelected(data == _selected);
                 btn.Clicked += OnClickedProxy;
             }
         }
 
-        void EnsurePool(int need)
+        private void EnsurePool(int need)
         {
             while (_buttons.Count < need)
             {
@@ -60,7 +67,7 @@ namespace MMDress.UI
                 var btn = go.GetComponent<ItemButtonView>();
                 if (!btn)
                 {
-                    Debug.LogError("[Grid] Button Prefab TIDAK punya ItemButtonView di root. Tambahkan komponen itu pada prefab.", go);
+                    Debug.LogError("[Grid] Button Prefab TIDAK punya ItemButtonView di root.", go);
                     Destroy(go);
                     return;
                 }
@@ -68,7 +75,7 @@ namespace MMDress.UI
             }
         }
 
-        void OnClickedProxy(ItemSO item)
+        private void OnClickedProxy(ItemSO item)
         {
             _selected = item;
             OnItemSelected?.Invoke(item);

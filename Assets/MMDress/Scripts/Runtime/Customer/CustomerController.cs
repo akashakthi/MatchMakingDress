@@ -3,17 +3,14 @@ using UnityEngine;
 using MMDress.Core;
 using MMDress.Gameplay;
 using MMDress.UI;
-
-using MMDress.Customer;                    // WaitTimer (class biasa)
-using MMDress.Runtime.Reputation;         // ReputationService
-using MMDress.Runtime.Integration;        // WaitTimerReputationBridge
+using MMDress.Runtime.Reputation;
+using MMDress.Runtime.Integration;
 
 namespace MMDress.Customer
 {
     [RequireComponent(typeof(Collider2D))]
     public sealed class CustomerController : MonoBehaviour, IClickable
     {
-        // ======= Config movement =======
         [Header("Movement")]
         [SerializeField] private float moveSpeed = 2f;
         [SerializeField] private float arriveThreshold = 0.05f;
@@ -21,15 +18,10 @@ namespace MMDress.Customer
         [Header("Waiting")]
         [SerializeField] private float defaultWaitDurationSec = 15f;
 
-        // ======= Services / Bridges =======
         [Header("Services & Bridges")]
-        [SerializeField] private ReputationService reputation;                 // drag dari [_Services]
-        [SerializeField] private WaitTimerReputationBridge waitTimerBridge;    // tempel komponen ini di prefab customer
+        [SerializeField] private ReputationService reputation;                 // optional
+        [SerializeField] private WaitTimerReputationBridge waitTimerBridge;    // optional
 
-        // ======= Public refs =======
-        public Character.CharacterOutfitController Outfit { get; private set; }
-
-        // ======= Internal state =======
         private enum State { Idle, EnteringQueue, Queued, EnteringSeat, Waiting, Fitting, Leaving }
         private State _state = State.Idle;
         private Collider2D _col;
@@ -46,7 +38,7 @@ namespace MMDress.Customer
         // Despawn callback (pooling)
         private Action<CustomerController> _onDespawn;
 
-        // ======= Events (untuk View/UI) =======
+        // Events (untuk HUD/UI lain)
         public event Action<CustomerController> OnWaitingStarted;
         public event Action<CustomerController, float> OnWaitProgress; // frac 1→0
         public event Action<CustomerController> OnTimedOut;
@@ -55,7 +47,6 @@ namespace MMDress.Customer
 
         private void Awake()
         {
-            Outfit = GetComponentInChildren<Character.CharacterOutfitController>();
             _col = GetComponent<Collider2D>();
         }
 
@@ -71,7 +62,7 @@ namespace MMDress.Customer
             _onDespawn = onDespawn;
 
             _timer = new WaitTimer(waitSec > 0 ? waitSec : defaultWaitDurationSec);
-            if (waitTimerBridge) waitTimerBridge.Bind(_timer);   // ← penting: reputasi → timer
+            if (waitTimerBridge) waitTimerBridge.Bind(_timer);
 
             _state = State.EnteringSeat;
             if (_col) _col.enabled = true;
@@ -102,7 +93,7 @@ namespace MMDress.Customer
             _onSeatFreed = onSeatFreed;
 
             _timer = new WaitTimer(_pendingWaitSec > 0 ? _pendingWaitSec : defaultWaitDurationSec);
-            if (waitTimerBridge) waitTimerBridge.Bind(_timer);   // ← penting
+            if (waitTimerBridge) waitTimerBridge.Bind(_timer);
 
             _state = State.EnteringSeat;
         }
@@ -130,13 +121,9 @@ namespace MMDress.Customer
 
                     if (_timer != null && _timer.IsDone)
                     {
-                        // Timeout → reputasi -1%
-                       // reputation?.ApplyCheckout(served: false, empty: true);
-
                         OnTimedOut?.Invoke(this);
                         FreeSeat();
 
-                        // broadcast kompatibel (items=0)
                         ServiceLocator.Events?.Publish(new CustomerCheckout(this, 0));
                         ServiceLocator.Events?.Publish(new CustomerTimedOut(this));
 
@@ -146,9 +133,7 @@ namespace MMDress.Customer
 
                 case State.Leaving:
                     if (MoveTo(_exitPos))
-                    {
-                        _onDespawn?.Invoke(this); // pooling/despawn
-                    }
+                        _onDespawn?.Invoke(this);
                     break;
             }
         }
@@ -169,22 +154,12 @@ namespace MMDress.Customer
             ServiceLocator.Events?.Publish(new CustomerSelected(this));
         }
 
-        // Dipanggil UI saat panel Close (setelah EquipAllPreview dipanggil)
-        public void FinishFitting()
+        // === API dipanggil UI ===
+        // Versi baru: UI langsung kasih jumlah item yang benar-benar equip (0–2).
+        public void FinishFitting(int equippedCount)
         {
-            // Hitung berapa item yang benar-benar ter-equip
-            int items = 0;
-            if (Outfit != null)
-            {
-                if (Outfit.GetEquipped(MMDress.Data.OutfitSlot.Top) != null) items++;
-                if (Outfit.GetEquipped(MMDress.Data.OutfitSlot.Bottom) != null) items++;
-            }
+            int items = Mathf.Clamp(equippedCount, 0, 2);
 
-            // Update reputasi: served = +1% jika ada item, else -1%
-            bool served = items > 0;
-           // reputation?.ApplyCheckout(served: served, empty: !served);
-
-            // Broadcast untuk sistem lain (HUD/score/economy)
             ServiceLocator.Events?.Publish(new CustomerCheckout(this, items));
 
             if (_state != State.Fitting) return;
@@ -192,9 +167,11 @@ namespace MMDress.Customer
             FreeSeat();
             BeginLeaving();
 
-            // (skor di-skip sesuai catatanmu)
             ServiceLocator.Events?.Publish(new CustomerServed(this, 0));
         }
+
+        // Versi lama (fallback): diasumsikan 0 item.
+        public void FinishFitting() => FinishFitting(0);
 
         private void BeginLeaving()
         {
