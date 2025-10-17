@@ -5,6 +5,7 @@ using System.IO;
 using UnityEditor;
 using UnityEngine;
 using UnityEditor.SceneManagement;
+using MMDress.Data; // <-- penting: pakai CatalogSO, ItemSO
 using Object = UnityEngine.Object;
 
 /// <summary>
@@ -56,12 +57,10 @@ public sealed class MMDressDevHubWindow : EditorWindow
     }
 
     /// <summary>Pindah tab (mis. dari menu legacy/shortcut).</summary>
-    // jadikan private agar tidak bentrok akses
     private void SetTab(Tab tab) { current = tab; Repaint(); }
 
     // API publik yang dipanggil dari menu lain
     public void SetTabGenerateItems() => SetTab(Tab.GenerateItems);
-
 
     // ================== Lifecycle ==================
     void OnEnable()
@@ -208,35 +207,36 @@ public sealed class MMDressDevHubWindow : EditorWindow
             // Tops
             for (int i = 0; i < genTop; i++)
             {
-                var item = ScriptableObject.CreateInstance<MMDress.Data.ItemSO>();
+                var item = ScriptableObject.CreateInstance<ItemSO>();
                 item.id = $"top_{idSeed + i}";
                 item.displayName = $"Top {i + 1}";
-                item.slot = MMDress.Data.OutfitSlot.Top;
+                item.slot = OutfitSlot.Top;
                 item.localPos = Vector3.zero;
                 item.localScale = Vector3.one;
                 item.localRotZ = 0f;
                 var path = $"{itemsFolder}/Top_{i + 1}.asset";
                 AssetDatabase.CreateAsset(item, path);
-                if (createCatalog) catalog.items.Add(item);
+                if (createCatalog) catalog.Editor_AddItem(item); // <<— ganti: pakai API editor
             }
 
             // Bottoms
             for (int i = 0; i < genBottom; i++)
             {
-                var item = ScriptableObject.CreateInstance<MMDress.Data.ItemSO>();
+                var item = ScriptableObject.CreateInstance<ItemSO>();
                 item.id = $"bottom_{idSeed + genTop + i}";
                 item.displayName = $"Bottom {i + 1}";
-                item.slot = MMDress.Data.OutfitSlot.Bottom;
+                item.slot = OutfitSlot.Bottom;
                 item.localPos = Vector3.zero;
                 item.localScale = Vector3.one;
                 item.localRotZ = 0f;
                 var path = $"{itemsFolder}/Bottom_{i + 1}.asset";
                 AssetDatabase.CreateAsset(item, path);
-                if (createCatalog) catalog.items.Add(item);
+                if (createCatalog) catalog.Editor_AddItem(item); // <<— ganti: pakai API editor
             }
 
             if (createCatalog)
             {
+                catalog.Editor_RemoveNulls(); // bersih-bersih kalau ada null
                 EditorUtility.SetDirty(catalog);
                 AssetDatabase.SaveAssets();
                 AssetDatabase.Refresh();
@@ -284,7 +284,7 @@ public sealed class MMDressDevHubWindow : EditorWindow
             foreach (var g in guids)
             {
                 string path = AssetDatabase.GUIDToAssetPath(g);
-                var item = AssetDatabase.LoadAssetAtPath<MMDress.Data.ItemSO>(path);
+                var item = AssetDatabase.LoadAssetAtPath<ItemSO>(path);
                 if (item == null) continue;
 
                 if (string.IsNullOrEmpty(item.id)) { dup.Add(("(EMPTY)", path)); continue; }
@@ -444,15 +444,15 @@ public sealed class MMDressDevHubWindow : EditorWindow
     }
 
     // -------- Data helpers --------
-    MMDress.Data.CatalogSO EnsureCatalog(string unityPath)
+    CatalogSO EnsureCatalog(string unityPath)
     {
-        var existing = AssetDatabase.LoadAssetAtPath<MMDress.Data.CatalogSO>(unityPath);
+        var existing = AssetDatabase.LoadAssetAtPath<CatalogSO>(unityPath);
         if (existing != null) return existing;
 
         int slash = unityPath.LastIndexOf('/');
         if (slash > 0) EnsureFolder(unityPath.Substring(0, slash));
 
-        var catalog = ScriptableObject.CreateInstance<MMDress.Data.CatalogSO>();
+        var catalog = ScriptableObject.CreateInstance<CatalogSO>();
         AssetDatabase.CreateAsset(catalog, unityPath);
         AssetDatabase.SaveAssets(); AssetDatabase.Refresh();
         return catalog;

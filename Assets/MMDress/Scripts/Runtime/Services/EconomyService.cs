@@ -1,46 +1,57 @@
+// Assets/MMDress/Scripts/Runtime/Services/EconomyService.cs
 using UnityEngine;
-using MMDress.Core;     // ServiceLocator.Events
-using MMDress.UI;       // MoneyChanged  // CustomerCheckout (opsional payout)
+using MMDress.Core;
+using MMDress.UI;
 
 namespace MMDress.Services
 {
     [DisallowMultipleComponent]
     public sealed class EconomyService : MonoBehaviour
     {
+        const string PrefKey = "eco_balance";
+
         [Header("Balance (runtime)")]
-        [SerializeField] private int balance;
+        [SerializeField] private int balance = 0;
 
         [Header("Payout saat CustomerCheckout (opsional)")]
         [SerializeField] private bool enablePayoutOnCheckout = false;
-        [SerializeField] private int payoutFull = 200;     // 2 item
-        [SerializeField] private int payoutPartial = 0;    // 1 item (kita nol-kan, reputasi -1%)
-        [SerializeField] private int payoutEmpty = 0;      // 0 item
+        [SerializeField] private int payoutFull = 200;
+        [SerializeField] private int payoutPartial = 0;
+        [SerializeField] private int payoutEmpty = 0;
         [SerializeField, Min(0f)] private float receiveWindowSec = 0.25f;
 
         public int Balance => balance;
 
         System.Action<CustomerCheckout> _onCheckout;
 
-        private void OnEnable()
+        void Awake()
         {
-            if (enablePayoutOnCheckout)
-            {
-                _onCheckout = e =>
-                {
-                    int amt = e.itemsEquipped >= 2 ? payoutFull :
-                              e.itemsEquipped == 1 ? payoutPartial : payoutEmpty;
-                    if (amt > 0) Add(amt);
-                };
-                ServiceLocator.Events.Subscribe(_onCheckout);
-            }
+            // load persist
+            if (PlayerPrefs.HasKey(PrefKey)) balance = PlayerPrefs.GetInt(PrefKey, balance);
         }
 
-        private void OnDisable()
+        void Start()
+        {
+            ServiceLocator.Events?.Publish(new MoneyChanged(0, balance)); // render HUD awal
+        }
+
+        void OnEnable()
+        {
+            if (!enablePayoutOnCheckout) return;
+            _onCheckout = e =>
+            {
+                int amt = e.itemsEquipped >= 2 ? payoutFull :
+                          e.itemsEquipped == 1 ? payoutPartial : payoutEmpty;
+                if (amt > 0) Add(amt);
+            };
+            ServiceLocator.Events.Subscribe(_onCheckout);
+        }
+
+        void OnDisable()
         {
             if (_onCheckout != null) ServiceLocator.Events.Unsubscribe(_onCheckout);
         }
 
-        // ==== API ====
         public bool CanSpend(int amount) => amount <= balance;
 
         public bool Spend(int amount)
@@ -48,6 +59,8 @@ namespace MMDress.Services
             if (amount <= 0) return true;
             if (balance < amount) return false;
             balance -= amount;
+            PlayerPrefs.SetInt(PrefKey, balance);
+            PlayerPrefs.Save();
             ServiceLocator.Events?.Publish(new MoneyChanged(-amount, balance));
             return true;
         }
@@ -56,11 +69,9 @@ namespace MMDress.Services
         {
             if (amount == 0) return;
             balance += amount;
+            PlayerPrefs.SetInt(PrefKey, balance);
+            PlayerPrefs.Save();
             ServiceLocator.Events?.Publish(new MoneyChanged(amount, balance));
         }
-
-        // Convenience untuk debug
-        [ContextMenu("Add 1000")]
-        private void _DebugAdd() => Add(1000);
     }
 }

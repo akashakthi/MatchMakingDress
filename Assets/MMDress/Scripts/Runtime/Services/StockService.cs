@@ -1,115 +1,122 @@
-using System.Collections.Generic;
+﻿// Assets/MMDress/Scripts/Runtime/Services/StockService.cs
 using UnityEngine;
-using MMDress.Runtime.Inventory;   // CatalogSO, ItemSO, OutfitSlot, GarmentSlot, MaterialType
-using MMDress.Core;                // ServiceLocator
-using MMDress.UI;                  // InventoryChanged
-
-// alias untuk enum material
-using InvMaterialType = MMDress.Runtime.Inventory.MaterialType;
 using MMDress.Data;
+using MMDress.Runtime.Inventory;
 
 namespace MMDress.Services
 {
-    [DisallowMultipleComponent]
     public sealed class StockService : MonoBehaviour
     {
-        [Header("Sumber Item (katalog yang sama dengan Fitting)")]
+        [Header("Sumber item (katalog yang sama dengan Fitting)")]
         [SerializeField] private CatalogSO catalog;
-        [SerializeField] private bool autoFindCatalog = true;
 
-        // Bahan (hanya 1 enum: Inventory.MaterialType)
-        private readonly Dictionary<InvMaterialType, int> _materials = new()
+        [Header("Auto Find Catalog")]
+        [SerializeField] private bool autoFindCatalog = false;
+
+        // Materials
+        int _cloth, _thread;
+
+        // Garments
+        int[] _tops;     // ukuran = catalog.TopCount
+        int[] _bottoms;  // ukuran = catalog.BottomCount
+
+        public CatalogSO Catalog => catalog;
+
+        void Awake()
         {
-            { InvMaterialType.Cloth,  0 },
-            { InvMaterialType.Thread, 0 },
-        };
-
-        // Stok pakaian per ItemSO
-        private readonly Dictionary<ItemSO, int> _garments = new();
-
-        // Cache list per slot (urut dari CatalogSO)
-        private readonly List<ItemSO> _tops = new();
-        private readonly List<ItemSO> _bottoms = new();
-
-        public int TopTypes => _tops.Count;
-        public int BottomTypes => _bottoms.Count;
-
-        public int GetMaterial(InvMaterialType t) => _materials.TryGetValue(t, out var v) ? v : 0;
-        public void AddMaterial(InvMaterialType t, int delta)
-        {
-            _materials[t] = Mathf.Max(0, GetMaterial(t) + delta);
-            ServiceLocator.Events?.Publish(new InventoryChanged());
+            if (autoFindCatalog && !catalog)
+                catalog = Resources.Load<CatalogSO>("Catalog"); // opsional
+            ResizeArrays();
         }
 
-        public ItemSO GetItem(GarmentSlot slot, int typeIndex)
+        void ResizeArrays()
         {
-            var list = (slot == GarmentSlot.Top) ? _tops : _bottoms;
-            return (typeIndex >= 0 && typeIndex < list.Count) ? list[typeIndex] : null;
+            int t = catalog ? catalog.TopCount : 0;
+            int b = catalog ? catalog.BottomCount : 0;
+            _tops = (t > 0) ? new int[t] : new int[0];
+            _bottoms = (b > 0) ? new int[b] : new int[0];
         }
 
-        public int GetGarmentCount(GarmentSlot slot, int typeIndex)
-        {
-            var it = GetItem(slot, typeIndex);
-            return it ? GetGarmentCount(it) : 0;
-        }
-        public int GetGarmentCount(ItemSO item) => _garments.TryGetValue(item, out var v) ? v : 0;
-        public bool HasAny(ItemSO item) => GetGarmentCount(item) > 0;
+        // === Materials ===
+        public int GetMaterial(MaterialType t) => t == MaterialType.Cloth ? _cloth : _thread;
 
-        // ==== Crafting (1 kain + 1 benang per item) ====
+        public void AddMaterial(MaterialType t, int qty)
+        {
+            if (qty <= 0) return;
+            if (t == MaterialType.Cloth) _cloth += qty;
+            else _thread += qty;
+        }
+
+        // === Garments (per slot, index relatif) ===
+        public int TopTypes => _tops.Length;
+        public int BottomTypes => _bottoms.Length;
+
+        public int GetGarmentCount(GarmentSlot slot, int relIndex)
+        {
+            return slot == GarmentSlot.Top
+                ? (relIndex >= 0 && relIndex < _tops.Length ? _tops[relIndex] : 0)
+                : (relIndex >= 0 && relIndex < _bottoms.Length ? _bottoms[relIndex] : 0);
+        }
+
+        // Craft = ambil 1 kain + 1 benang per item → tambahkan stok baju
         public bool TryCraft(ItemSO item, int qty)
         {
             if (!item || qty <= 0) return false;
+            int need = qty;
 
-            if (GetMaterial(InvMaterialType.Cloth) < qty) return false;
-            if (GetMaterial(InvMaterialType.Thread) < qty) return false;
+            if (_cloth < need || _thread < need) return false;
+            _cloth -= need; _thread -= need;
 
-            AddMaterial(InvMaterialType.Cloth, -qty);
-            AddMaterial(InvMaterialType.Thread, -qty);
-
-            _garments[item] = GetGarmentCount(item) + qty;
-            ServiceLocator.Events?.Publish(new InventoryChanged());
+            if (item.slot == OutfitSlot.Top)
+            {
+                int rel = catalog.GetRelativeIndex(item);
+                if (rel < 0 || rel >= _tops.Length) return false;
+                _tops[rel] += qty;
+            }
+            else
+            {
+                int rel = catalog.GetRelativeIndex(item);
+                if (rel < 0 || rel >= _bottoms.Length) return false;
+                _bottoms[rel] += qty;
+            }
             return true;
         }
 
+        // Uncraft = kurangi stok baju (opsional kembalikan bahan)
         public bool TryUncraft(ItemSO item, int qty, bool refundMaterials)
         {
             if (!item || qty <= 0) return false;
 
-            int cur = GetGarmentCount(item);
-            if (cur < qty) return false;
-
-            _garments[item] = cur - qty;
-
-            if (refundMaterials)
+            if (item.slot == OutfitSlot.Top)
             {
-                AddMaterial(InvMaterialType.Cloth, +qty);
-                AddMaterial(InvMaterialType.Thread, +qty);
+                int rel = catalog.GetRelativeIndex(item);
+                if (rel < 0 || rel >= _tops.Length || _tops[rel] < qty) return false;
+                _tops[rel] -= qty;
+            }
+            else
+            {
+                int rel = catalog.GetRelativeIndex(item);
+                if (rel < 0 || rel >= _bottoms.Length || _bottoms[rel] < qty) return false;
+                _bottoms[rel] -= qty;
             }
 
-            ServiceLocator.Events?.Publish(new InventoryChanged());
+            if (refundMaterials) { _cloth += qty; _thread += qty; }
             return true;
         }
 
-        private void Awake()
+        // Helper untuk UI lama
+        public ItemSO GetItem(GarmentSlot slot, int relIndex)
         {
-            if (autoFindCatalog && !catalog)
-                catalog = FindObjectOfType<CatalogSO>(true);
-            RebuildFromCatalog();
-        }
-
-        private void RebuildFromCatalog()
-        {
-            _tops.Clear(); _bottoms.Clear();
-
-            if (!catalog || catalog.items == null) return;
-            foreach (var it in catalog.items)
+            if (!catalog) return null;
+            int count = 0;
+            foreach (var it in catalog.Items)
             {
-                if (!it) continue;
-                if (!_garments.ContainsKey(it)) _garments[it] = 0;
-
-                if (it.slot == OutfitSlot.Top) _tops.Add(it);
-                else if (it.slot == OutfitSlot.Bottom) _bottoms.Add(it);
+                if (!it || (slot == GarmentSlot.Top ? it.slot != OutfitSlot.Top : it.slot != OutfitSlot.Bottom))
+                    continue;
+                if (count == relIndex) return it;
+                count++;
             }
+            return null;
         }
     }
 }

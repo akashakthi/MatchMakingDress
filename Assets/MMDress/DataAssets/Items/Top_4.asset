@@ -10,15 +10,17 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 58a3f072a561f674cb5887719e71a5d2, type: 3}
-  m_Name: Top_2
+  m_Name: Top_4
   m_EditorClassIdentifier: 
-  id: top_2
-  displayName: Top 2
+  id: top_4
+  displayName: Top 4
   slot: 0
-  sprite: {fileID: 4001772097296436827, guid: 1377373243a0e664f9a451be418951c1, type: 3}
+  sprite: {fileID: -3476708935611197262, guid: 7031ecb721e79224ca799dc75e76ef58, type: 3}
   localPos: {x: 0, y: 1.5, z: 0}
   localScale: {x: 1, y: 1, z: 1}
   localRotZ: 0
   requiresMaterials: 0
-  materialCosts: []
+  materialCosts:
+  - material: {fileID: 0}
+    qty: 0
   price: 0

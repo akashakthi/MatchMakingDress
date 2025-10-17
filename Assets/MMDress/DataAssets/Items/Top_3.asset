@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 58a3f072a561f674cb5887719e71a5d2, type: 3}
   m_Name: Top_3
   m_EditorClassIdentifier: 
-  id: top_3403
+  id: top_3
   displayName: Top 3
   slot: 0
   sprite: {fileID: -3476708935611197262, guid: 7031ecb721e79224ca799dc75e76ef58, type: 3}
