@@ -1,6 +1,10 @@
-﻿using System.Collections.Generic;
+﻿// Assets/MMDress/Scripts/Runtime/Gameplay/Customer/CustomerSpawner.cs
+using System.Collections.Generic;
 using UnityEngine;
 using MMDress.Core;
+using MMDress.Services;
+// pilih reputasi dari namespace runtime:
+using RepService = MMDress.Runtime.Reputation.ReputationService;
 
 namespace MMDress.Customer
 {
@@ -24,6 +28,13 @@ namespace MMDress.Customer
         [SerializeField] private bool usePooling = true;
         [SerializeField, Min(0)] private int prewarm = 5;
 
+        [Header("Orders")]
+        [SerializeField] private OrderService orderService;          // <- drag dari _Services
+        [SerializeField] private RepService reputation;            // <- optional (boleh null)
+        [SerializeField] private bool autoFindServices = true;       // cari otomatis kalau kosong
+        [SerializeField] private bool verboseOrderLog = false;
+
+        // internals
         readonly List<Transform> _seats = new();
         readonly List<Transform> _queue = new();
         bool[] _seatOccupied;
@@ -37,6 +48,12 @@ namespace MMDress.Customer
 
         void Awake()
         {
+            if (autoFindServices)
+            {
+                orderService ??= FindObjectOfType<OrderService>(true);
+                reputation ??= FindObjectOfType<RepService>(true);
+            }
+
             CollectPoints();
 
             if (usePooling)
@@ -47,7 +64,7 @@ namespace MMDress.Customer
                     {
                         c.gameObject.SetActive(true);
                         if (spawnPoint) c.transform.position = spawnPoint.position;
-                        // tidak perlu reset view outfit
+                        // (outfit view reset bisa kamu tambah jika perlu)
                     },
                     onRelease: (c) => c.gameObject.SetActive(false)
                 );
@@ -130,8 +147,10 @@ namespace MMDress.Customer
             _active.Add(c);
             _seatOccupied[seatIndex] = true;
 
-            float waitSec = Random.Range(waitSecondsRange.x, waitSecondsRange.y);
+            // >>> NEW: assign order begitu spawn
+            AssignOrder(c);
 
+            float waitSec = Random.Range(waitSecondsRange.x, waitSecondsRange.y);
             c.InitSeat(
                 _seats[seatIndex].position,
                 exitPoint.position,
@@ -148,8 +167,10 @@ namespace MMDress.Customer
             _active.Add(c);
             _queueOcc[queueIndex] = c;
 
-            float waitSec = Random.Range(waitSecondsRange.x, waitSecondsRange.y);
+            // >>> NEW: assign order begitu spawn
+            AssignOrder(c);
 
+            float waitSec = Random.Range(waitSecondsRange.x, waitSecondsRange.y);
             c.InitQueue(
                 _queue[queueIndex].position,
                 exitPoint.position,
@@ -158,6 +179,29 @@ namespace MMDress.Customer
                 waitSec,
                 OnDespawn
             );
+        }
+
+        void AssignOrder(CustomerController c)
+        {
+            if (!c) return;
+
+            var holder = c.GetComponent<CustomerOrder>();
+            if (!holder) return;
+
+            if (!orderService)
+            {
+                if (verboseOrderLog)
+                    Debug.LogWarning("[CustomerSpawner] OrderService belum di-assign di Spawner.", this);
+                holder.SetOrder(null);
+                return;
+            }
+
+            int stage = reputation ? Mathf.Clamp(reputation.Stage, 1, 3) : 1;
+            var order = orderService.GetRandomOrder(stage);
+            holder.SetOrder(order);
+
+            if (verboseOrderLog)
+                Debug.Log($"[CustomerSpawner] Assigned order={(order ? order.name : "(null)")} stage={stage} to {c.name}", this);
         }
 
         void OnDespawn(CustomerController c) => Release(c);
