@@ -1,0 +1,17 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 661aa17c5ec0e564aa0eeb276b8aa15c, type: 3}
+  m_Name: Benang
+  m_EditorClassIdentifier: 
+  id: benang
+  displayName: Benang
+  icon: {fileID: -8073200944176442689, guid: ba9f9b20aa41e1641a1dcb395170006a, type: 3}

@@ -1,10 +1,12 @@
-﻿using UnityEngine;
+﻿// Assets/MMDress/Scripts/Runtime/UI/EndOfDay/EndOfDaySummaryPanel.cs
+using System.Text;
+using UnityEngine;
 using UnityEngine.UI;
 using MMDress.Services;
-using MMDress.Runtime.Inventory;
 using MMDress.Core;
 using MMDress.UI;
 using MMDress.Runtime.Timer;
+using MMDress.Data;
 
 namespace MMDress.Runtime.UI.EndOfDay
 {
@@ -14,6 +16,7 @@ namespace MMDress.Runtime.UI.EndOfDay
         [Header("Refs")]
         [SerializeField] private StockService stock;
         [SerializeField] private TimeOfDayService timeOfDay;
+        [SerializeField] private CatalogSO catalog; // optional; kalau kosong, ambil dari stock.Catalog
 
         [Header("UI Texts")]
         [SerializeField] private Text titleText;   // "Sisa Stok Hari Ini"
@@ -25,71 +28,74 @@ namespace MMDress.Runtime.UI.EndOfDay
 
         System.Action<EndOfDayArrived> _onEod;
 
-        [Header("Persist")]
-        [SerializeField] private bool usePlayerPrefs = true;
-        const string KEY = "MMDress.Stock.";
-
-        [Header("Runtime")]
-        [SerializeField] private int cloth;
-        [SerializeField] private int thread;
-        [SerializeField] private int[] tops;     // per type
-        [SerializeField] private int[] bottoms;  // per type
-
-
-        private void Awake()
+        void Awake()
         {
             if (autoFind)
             {
-                stock ??= FindObjectOfType<StockService>(true);
-                timeOfDay ??= FindObjectOfType<TimeOfDayService>(true);
+#if UNITY_2023_1_OR_NEWER
+                stock ??= Object.FindAnyObjectByType<StockService>(FindObjectsInactive.Include);
+                timeOfDay ??= Object.FindAnyObjectByType<TimeOfDayService>(FindObjectsInactive.Include);
+#else
+                stock    ??= FindObjectOfType<StockService>(true);
+                timeOfDay??= FindObjectOfType<TimeOfDayService>(true);
+#endif
             }
+            // panel hanya tampil saat EoD
             gameObject.SetActive(false);
         }
 
-        private void OnEnable()
+        void OnEnable()
         {
             _onEod = _ => ShowSummary();
             ServiceLocator.Events.Subscribe(_onEod);
         }
 
-        private void OnDisable()
+        void OnDisable()
         {
             if (_onEod != null) ServiceLocator.Events.Unsubscribe(_onEod);
         }
 
-        private void ShowSummary()
+        void ShowSummary()
         {
             if (!stock) return;
+
+            // pastikan katalog ada (boleh ambil dari StockService)
+            var cat = catalog ? catalog : stock.Catalog;
             gameObject.SetActive(true);
+
             if (titleText) titleText.text = "Sisa Stok Hari Ini";
 
-            var sbTop = new System.Text.StringBuilder();
-            int tn = stock.TopTypes;
-            for (int i = 0; i < tn; i++)
+            // Render Top & Bottom dengan membaca CatalogSO + stok per ItemSO
+            var sbTop = new StringBuilder();
+            var sbBot = new StringBuilder();
+
+            if (cat && cat.Items != null)
             {
-                if (i > 0) sbTop.Append("\n");
-                sbTop.Append($"Top{i + 1}: {stock.GetGarmentCount(GarmentSlot.Top, i)}");
+                foreach (var item in cat.Items)
+                {
+                    if (!item) continue;
+                    int count = stock.GetGarment(item); // SO-only
+                    if (item.slot == OutfitSlot.Top)
+                    {
+                        if (sbTop.Length > 0) sbTop.Append('\n');
+                        sbTop.Append($"{(string.IsNullOrEmpty(item.displayName) ? item.name : item.displayName)}: {count}");
+                    }
+                    else // Bottom
+                    {
+                        if (sbBot.Length > 0) sbBot.Append('\n');
+                        sbBot.Append($"{(string.IsNullOrEmpty(item.displayName) ? item.name : item.displayName)}: {count}");
+                    }
+                }
             }
+            else
+            {
+                // fallback jika tidak ada katalog (biar tidak null/empty)
+                sbTop.Append("No catalog / items");
+                sbBot.Append("No catalog / items");
+            }
+
             if (topsText) topsText.text = sbTop.ToString();
-
-            var sbBot = new System.Text.StringBuilder();
-            int bn = stock.BottomTypes;
-            for (int i = 0; i < bn; i++)
-            {
-                if (i > 0) sbBot.Append("\n");
-                sbBot.Append($"Bottom{i + 1}: {stock.GetGarmentCount(GarmentSlot.Bottom, i)}");
-            }
             if (bottomsText) bottomsText.text = sbBot.ToString();
-        }
-       
-        // ✅ Tambahan ini untuk dipakai EndOfDaySummaryPanel
-        public int TopTypes => tops != null ? tops.Length : 0;
-        public int BottomTypes => bottoms != null ? bottoms.Length : 0;
-
-        public void InitArrays(int topTypes, int bottomTypes)
-        {
-            if (tops == null || tops.Length != topTypes) tops = new int[topTypes];
-            if (bottoms == null || bottoms.Length != bottomTypes) bottoms = new int[bottomTypes];
         }
 
         // Panggil dari tombol "OK"

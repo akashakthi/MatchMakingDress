@@ -1,0 +1,17 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 661aa17c5ec0e564aa0eeb276b8aa15c, type: 3}
+  m_Name: Kain
+  m_EditorClassIdentifier: 
+  id: kain
+  displayName: Kain
+  icon: {fileID: 2349113263143375161, guid: 78d29ecf98e8cbb48814ce2bbcb87fd8, type: 3}

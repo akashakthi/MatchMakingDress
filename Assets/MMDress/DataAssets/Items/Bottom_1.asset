@@ -20,5 +20,8 @@ MonoBehaviour:
   localScale: {x: 1, y: 1, z: 1}
   localRotZ: 0
   requiresMaterials: 0
-  materialCosts: []
-  price: 0
+  materialCosts:
+  - material: {fileID: 11400000, guid: 39827433ff149f247a031cd7a7ad65db, type: 2}
+    qty: 1
+  - material: {fileID: 11400000, guid: aa6dd14aca6da944fb9f9ae57a7f704c, type: 2}
+    qty: 1

@@ -724,15 +724,11 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   stock: {fileID: 1626536506}
   timeOfDay: {fileID: 1626536503}
+  catalog: {fileID: 0}
   titleText: {fileID: 874381885}
   topsText: {fileID: 366127292}
   bottomsText: {fileID: 1163982365}
   autoFind: 1
-  usePlayerPrefs: 1
-  cloth: 0
-  thread: 0
-  tops: 
-  bottoms: 
 --- !u!1 &211519296
 GameObject:
   m_ObjectHideFlags: 0
@@ -1464,6 +1460,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   procurement: {fileID: 1626536509}
   autoFind: 1
+  cloth: {fileID: 11400000, guid: aa6dd14aca6da944fb9f9ae57a7f704c, type: 2}
+  thread: {fileID: 11400000, guid: 39827433ff149f247a031cd7a7ad65db, type: 2}
   clothText: {fileID: 713994093}
   threadText: {fileID: 2000574311}
 --- !u!1 &358527613
@@ -1523,6 +1521,7 @@ MonoBehaviour:
   plusButton: {fileID: 1277063267}
   minusButton: {fileID: 267706870}
   manualItem: {fileID: 11400000, guid: 0dc5aec3e5c9f6244b45a606f55bedc9, type: 2}
+  logClicks: 1
 --- !u!1 &365898441
 GameObject:
   m_ObjectHideFlags: 0
@@ -1756,6 +1755,7 @@ MonoBehaviour:
   plusButton: {fileID: 590903175}
   minusButton: {fileID: 2040232605}
   manualItem: {fileID: 0}
+  logClicks: 0
 --- !u!1 &416956165
 GameObject:
   m_ObjectHideFlags: 0
@@ -1810,7 +1810,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   button: {fileID: 416956168}
   procurement: {fileID: 1626536509}
-  material: 0
+  material: {fileID: 11400000, guid: aa6dd14aca6da944fb9f9ae57a7f704c, type: 2}
   quantity: 1
 --- !u!114 &416956168
 MonoBehaviour:
@@ -2852,7 +2852,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   button: {fileID: 576864909}
   procurement: {fileID: 1626536509}
-  material: 1
+  material: {fileID: 11400000, guid: 39827433ff149f247a031cd7a7ad65db, type: 2}
   quantity: 1
 --- !u!114 &576864909
 MonoBehaviour:
@@ -4512,7 +4512,8 @@ MonoBehaviour:
   qtyText: {fileID: 431249078}
   plusButton: {fileID: 620064072}
   minusButton: {fileID: 511453987}
-  manualItem: {fileID: 0}
+  manualItem: {fileID: 11400000, guid: d6a2f1313b07de744984068ce6bbe194, type: 2}
+  logClicks: 0
 --- !u!1 &847316574
 GameObject:
   m_ObjectHideFlags: 0
@@ -4795,7 +4796,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   button: {fileID: 877849731}
-  moneyService: {fileID: 1626536508}
+  economy: {fileID: 1626536508}
   amount: 1000
 --- !u!114 &877849731
 MonoBehaviour:
@@ -4840,19 +4841,7 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 877849732}
   m_OnClick:
     m_PersistentCalls:
-      m_Calls:
-      - m_Target: {fileID: 877849730}
-        m_TargetAssemblyTypeName: MMDress.Dev.CheatMoneyButton, MMDress.Runtime
-        m_MethodName: OnClickAddMoney
-        m_Mode: 1
-        m_Arguments:
-          m_ObjectArgument: {fileID: 0}
-          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
-          m_IntArgument: 0
-          m_FloatArgument: 0
-          m_StringArgument: 
-          m_BoolArgument: 0
-        m_CallState: 2
+      m_Calls: []
 --- !u!114 &877849732
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -5964,8 +5953,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e81ba982e41ad794ba40d8f14aab8a28, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  legacyText: {fileID: 0}
-  tmpText: {fileID: 0}
+  legacyText: {fileID: 1089023888}
+  tmpText: {fileID: 773736356}
   autoFind: 1
 --- !u!1 &1095981516
 GameObject:
@@ -6597,6 +6586,7 @@ MonoBehaviour:
   plusButton: {fileID: 1943411795}
   minusButton: {fileID: 36694221}
   manualItem: {fileID: 11400000, guid: e0b758c523689b24ba8490fe728186ca, type: 2}
+  logClicks: 1
 --- !u!1 &1197534779
 GameObject:
   m_ObjectHideFlags: 0
@@ -7184,7 +7174,8 @@ MonoBehaviour:
   qtyText: {fileID: 2052091038}
   plusButton: {fileID: 1053237524}
   minusButton: {fileID: 1128410400}
-  manualItem: {fileID: 0}
+  manualItem: {fileID: 11400000, guid: 2bc56a2327157634bba6e1935196e814, type: 2}
+  logClicks: 0
 --- !u!1 &1277063265
 GameObject:
   m_ObjectHideFlags: 0
@@ -7541,7 +7532,7 @@ MonoBehaviour:
   m_StartCorner: 0
   m_StartAxis: 1
   m_CellSize: {x: 200, y: 200}
-  m_Spacing: {x: 0, y: 0}
+  m_Spacing: {x: 100, y: 100}
   m_Constraint: 1
   m_ConstraintCount: 3
 --- !u!114 &1369450513
@@ -7650,6 +7641,10 @@ MonoBehaviour:
   needClothText: {fileID: 2037015662}
   needThreadText: {fileID: 1037953506}
   warningText: {fileID: 878473198}
+  clothMaterial: {fileID: 11400000, guid: aa6dd14aca6da944fb9f9ae57a7f704c, type: 2}
+  threadMaterial: {fileID: 11400000, guid: 39827433ff149f247a031cd7a7ad65db, type: 2}
+  craftInstantly: 1
+  verboseLog: 1
 --- !u!1 &1421467084
 GameObject:
   m_ObjectHideFlags: 0
@@ -7946,7 +7941,8 @@ MonoBehaviour:
   qtyText: {fileID: 1320635323}
   plusButton: {fileID: 1982594581}
   minusButton: {fileID: 1101500534}
-  manualItem: {fileID: 0}
+  manualItem: {fileID: 11400000, guid: 279d1d5715d45734aa93d263f846e0b8, type: 2}
+  logClicks: 0
 --- !u!1 &1515009184
 GameObject:
   m_ObjectHideFlags: 0
@@ -8153,7 +8149,8 @@ MonoBehaviour:
   qtyText: {fileID: 730774080}
   plusButton: {fileID: 2074631576}
   minusButton: {fileID: 2055386605}
-  manualItem: {fileID: 0}
+  manualItem: {fileID: 11400000, guid: c13aad7815e39cb4292d6782591d8d75, type: 2}
+  logClicks: 1
 --- !u!1 &1538666856
 GameObject:
   m_ObjectHideFlags: 0
@@ -8246,6 +8243,7 @@ MonoBehaviour:
   plusButton: {fileID: 665111722}
   minusButton: {fileID: 211519298}
   manualItem: {fileID: 11400000, guid: ad188f013a88646418c5f9c46d98516d, type: 2}
+  logClicks: 1
 --- !u!1 &1620941566
 GameObject:
   m_ObjectHideFlags: 0
@@ -8303,6 +8301,7 @@ MonoBehaviour:
   plusButton: {fileID: 767724847}
   minusButton: {fileID: 1421467086}
   manualItem: {fileID: 0}
+  logClicks: 0
 --- !u!1 &1626536501
 GameObject:
   m_ObjectHideFlags: 0
@@ -8436,8 +8435,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   economy: {fileID: 1626536508}
   stock: {fileID: 1626536506}
-  priceCloth: 100
-  priceThread: 100
+  defaultMaterialSOPrice: 100
+  verbose: 0
 --- !u!114 &1626536510
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -8876,7 +8875,8 @@ MonoBehaviour:
   qtyText: {fileID: 437394124}
   plusButton: {fileID: 1134714853}
   minusButton: {fileID: 1874179963}
-  manualItem: {fileID: 0}
+  manualItem: {fileID: 11400000, guid: 1b68acdab53a24b45b6ec17f8d5ac187, type: 2}
+  logClicks: 1
 --- !u!1 &1801781891
 GameObject:
   m_ObjectHideFlags: 0

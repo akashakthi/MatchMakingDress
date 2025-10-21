@@ -1,13 +1,13 @@
-// Assets/MMDress/Scripts/Runtime/Gameplay/Events.cs
-using System;
-using MMDress.Customer;
-using MMDress.Data;
+ï»¿using System;
+using MMDress.Core;       // SimpleEventBus / IEventBus
+using MMDress.Customer;   // CustomerController
+using MMDress.Data;       // ItemSO, OutfitSlot
 
 namespace MMDress.Gameplay
 {
-    // ————————————————————————————————————————
-    // CUSTOMER FLOW (tetap)
-    // ————————————————————————————————————————
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // CUSTOMER FLOW
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     public readonly struct CustomerSpawned
     {
         public readonly CustomerController customer;
@@ -36,47 +36,63 @@ namespace MMDress.Gameplay
     public readonly struct FittingUIOpened { }
     public readonly struct FittingUIClosed { }
 
-    // ————————————————————————————————————————
-    // OUTFIT FLOW (baru, dipisah tegas)
-    // ————————————————————————————————————————
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // OUTFIT FLOW (baru, tegas per-slot & per-item)
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-    /// Dipublish SETIAP user klik item di list (preview saja, non-permanen).
+    /// <summary>
+    /// Dipublish setiap kali user memilih item di list â†’ sekadar preview (belum permanen).
+    /// </summary>
     public readonly struct OutfitPreviewChanged
     {
-        public readonly CustomerController customer; // boleh null kalau free-mode
+        public readonly CustomerController customer; // boleh null jika free-mode
         public readonly OutfitSlot slot;
         public readonly ItemSO item;
 
         public OutfitPreviewChanged(CustomerController c, OutfitSlot s, ItemSO i)
         { customer = c; slot = s; item = i; }
+
+        public static void Publish(IEventBus bus, CustomerController c, OutfitSlot s, ItemSO i)
+        {
+            if (bus == null) return;
+            bus.Publish(new OutfitPreviewChanged(c, s, i));
+        }
     }
 
-    /// Dipublish SAAT dikonfirmasi (tombol Equip, atau auto-commit saat Close).
+    /// <summary>
+    /// Dipublish saat user menekan tombol Equip (atau auto-commit saat menutup panel).
+    /// </summary>
     public readonly struct OutfitEquippedCommitted
     {
-        public readonly CustomerController customer; // boleh null kalau free-mode
+        public readonly CustomerController customer; // boleh null jika free-mode
         public readonly OutfitSlot slot;
         public readonly ItemSO item;
 
         public OutfitEquippedCommitted(CustomerController c, OutfitSlot s, ItemSO i)
         { customer = c; slot = s; item = i; }
 
-        // Helper publik untuk publish per-slot secara aman
-        public static void Publish(MMDress.Core.SimpleEventBus bus, CustomerController c, OutfitSlot s, ItemSO i)
+        /// <summary>Helper aman untuk publish per-slot.</summary>
+        public static void Publish(IEventBus bus, CustomerController c, OutfitSlot s, ItemSO i)
         {
-            if (bus != null && i != null) bus.Publish(new OutfitEquippedCommitted(c, s, i));
+            if (bus == null || i == null) return;
+            bus.Publish(new OutfitEquippedCommitted(c, s, i));
         }
     }
 
-    // ————————————————————————————————————————
-    // LEGACY (untuk backward-compat sementara)
-    // ————————————————————————————————————————
-
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // LEGACY (sementara, untuk backward compatibility)
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     [Obsolete("Gunakan OutfitPreviewChanged(customer, slot, item).")]
     public readonly struct ItemPreviewed
     {
         public readonly ItemSO item;
         public ItemPreviewed(ItemSO i) { item = i; }
+
+        public static void Publish(IEventBus bus, ItemSO i)
+        {
+            if (bus == null || i == null) return;
+            bus.Publish(new ItemPreviewed(i));
+        }
     }
 
     [Obsolete("Gunakan OutfitEquippedCommitted(customer, slot, item).")]
@@ -84,5 +100,11 @@ namespace MMDress.Gameplay
     {
         public readonly ItemSO item;
         public ItemEquipped(ItemSO i) { item = i; }
+
+        public static void Publish(IEventBus bus, ItemSO i)
+        {
+            if (bus == null || i == null) return;
+            bus.Publish(new ItemEquipped(i));
+        }
     }
 }
