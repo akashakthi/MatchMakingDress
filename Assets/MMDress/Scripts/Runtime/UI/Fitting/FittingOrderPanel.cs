@@ -9,13 +9,11 @@ namespace MMDress.UI
     public sealed class FittingOrderPanel : MonoBehaviour
     {
         [Header("UI (single icon per slot)")]
-        [SerializeField] private Image topIcon;     // hanya ikon permintaan Top
-        [SerializeField] private Image bottomIcon;  // hanya ikon permintaan Bottom
+        [SerializeField] private Image topIcon;     // ikon permintaan Top (optional)
+        [SerializeField] private Image bottomIcon;  // ikon permintaan Bottom (optional)
 
-        [Header("Tint Colors")]
-        [SerializeField] private Color okTint = new(0.30f, 1f, 0.30f, 1f); // cocok
-        [SerializeField] private Color failTint = new(1f, 0.30f, 0.30f, 1f); // tidak cocok
-        [SerializeField] private Color neutral = Color.white;               // netral (tidak diminta)
+        [Header("Style")]
+        [SerializeField] private Color neutral = Color.white;
 
         private OrderSO _order;
 
@@ -26,77 +24,28 @@ namespace MMDress.UI
             // TOP
             if (topIcon)
             {
-                if (order && order.requiredTop && order.requiredTop.sprite)
-                {
-                    topIcon.enabled = true;
-                    topIcon.sprite = order.requiredTop.sprite;
-                    topIcon.preserveAspect = true;
-                    topIcon.color = neutral; // reset tint saat bind
-                }
-                else
-                {
-                    // tidak ada permintaan Top → sembunyikan ikon
-                    topIcon.enabled = false;
-                    topIcon.sprite = null;
-                }
+                var top = order && order.requiredTop ? order.requiredTop.sprite : null;
+                topIcon.sprite = top;
+                topIcon.enabled = (top != null);
+                topIcon.preserveAspect = true;
+                topIcon.color = neutral; // selalu netral
             }
 
             // BOTTOM
             if (bottomIcon)
             {
-                if (order && order.requiredBottom && order.requiredBottom.sprite)
-                {
-                    bottomIcon.enabled = true;
-                    bottomIcon.sprite = order.requiredBottom.sprite;
-                    bottomIcon.preserveAspect = true;
-                    bottomIcon.color = neutral;
-                }
-                else
-                {
-                    bottomIcon.enabled = false;
-                    bottomIcon.sprite = null;
-                }
+                var bot = order && order.requiredBottom ? order.requiredBottom.sprite : null;
+                bottomIcon.sprite = bot;
+                bottomIcon.enabled = (bot != null);
+                bottomIcon.preserveAspect = true;
+                bottomIcon.color = neutral; // selalu netral
             }
         }
 
+        // Tetap ada buat kompatibilitas, tapi tidak melakukan apa pun.
         public void ShowMatch(ItemSO equippedTop, ItemSO equippedBottom)
         {
-            if (!_order)
-            {
-                if (topIcon) topIcon.color = neutral;
-                if (bottomIcon) bottomIcon.color = neutral;
-                return;
-            }
-
-            // TOP
-            if (topIcon)
-            {
-                if (_order.requiredTop == null)
-                {
-                    // tidak diminta → ikon disembunyikan pada Bind, atau biarkan neutral kalau kamu ingin tetap tampil
-                    // topIcon.color = neutral;
-                }
-                else
-                {
-                    bool topOk = (equippedTop == _order.requiredTop);
-                    topIcon.color = topOk ? okTint : failTint;
-                }
-            }
-
-            // BOTTOM
-            if (bottomIcon)
-            {
-                if (_order.requiredBottom == null)
-                {
-                    // tidak diminta
-                    // bottomIcon.color = neutral;
-                }
-                else
-                {
-                    bool botOk = (equippedBottom == _order.requiredBottom);
-                    bottomIcon.color = botOk ? okTint : failTint;
-                }
-            }
+            // no-op: tidak ada tinting/efek warna
         }
     }
 }

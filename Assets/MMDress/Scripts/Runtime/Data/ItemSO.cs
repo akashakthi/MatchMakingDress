@@ -18,15 +18,9 @@ namespace MMDress.Data
         public OutfitSlot slot;
         public Sprite sprite;
 
-        [Header("Anchor Offset (per item)")]
-        public Vector3 localPos;
-        public Vector3 localScale = Vector3.one;
-        public float localRotZ;
-
         [Header("Crafting Requirements")]
         public bool requiresMaterials = true;
         public List<MaterialCost> materialCosts = new();
-        // public int price; // ❌ dihapus: baju tidak dibeli pakai uang
     }
 
     [Serializable]

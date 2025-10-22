@@ -3,9 +3,10 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using UnityEditor;
-using UnityEngine;
 using UnityEditor.SceneManagement;
-using MMDress.Data; // <-- penting: pakai CatalogSO, ItemSO
+using UnityEngine;
+using UnityEngine.UI;                // <— penting
+using MMDress.Data;                 // CatalogSO, ItemSO
 using Object = UnityEngine.Object;
 
 /// <summary>
@@ -47,7 +48,6 @@ public sealed class MMDressDevHubWindow : EditorWindow
     [MenuItem("Tools/MMDress/Dev Hub", false, 0)]
     public static void OpenMenu() => OpenWindow();
 
-    /// <summary>Buka jendela Dev Hub secara terprogram.</summary>
     public static MMDressDevHubWindow OpenWindow()
     {
         var w = GetWindow<MMDressDevHubWindow>("MMDress Dev Hub");
@@ -56,11 +56,9 @@ public sealed class MMDressDevHubWindow : EditorWindow
         return w;
     }
 
-    /// <summary>Pindah tab (mis. dari menu legacy/shortcut).</summary>
-    private void SetTab(Tab tab) { current = tab; Repaint(); }
-
-    // API publik yang dipanggil dari menu lain
+    // API publik (opsional)
     public void SetTabGenerateItems() => SetTab(Tab.GenerateItems);
+    void SetTab(Tab tab) { current = tab; Repaint(); }
 
     // ================== Lifecycle ==================
     void OnEnable()
@@ -91,6 +89,7 @@ public sealed class MMDressDevHubWindow : EditorWindow
         using (new EditorGUILayout.HorizontalScope())
         {
             DrawSidebar();
+
             using (new EditorGUILayout.VerticalScope("box", GUILayout.ExpandHeight(true), GUILayout.ExpandWidth(true)))
             {
                 switch (current)
@@ -135,8 +134,7 @@ public sealed class MMDressDevHubWindow : EditorWindow
 
     Tab SidebarButton(string label, Tab tab, Tab cur)
     {
-        var style = new GUIStyle(EditorStyles.miniButtonLeft)
-        { alignment = TextAnchor.MiddleLeft, fixedHeight = 26 };
+        var style = new GUIStyle(EditorStyles.miniButtonLeft) { alignment = TextAnchor.MiddleLeft, fixedHeight = 26 };
         bool on = cur == tab;
         if (GUILayout.Toggle(on, label, style) != on) cur = tab;
         return cur;
@@ -193,7 +191,7 @@ public sealed class MMDressDevHubWindow : EditorWindow
     {
         EditorGUILayout.LabelField("Generate Dummy ItemSO", EditorStyles.boldLabel);
         genTop = EditorGUILayout.IntField("Top (Baju)", Mathf.Max(0, genTop));
-        genBottom = EditorGUILayout.IntField("Bottom (Celana)", Mathf.Max(0, genBottom));
+        genBottom = EditorGUILayout.IntField("Bottom (Rok)", Mathf.Max(0, genBottom));
         itemsFolder = PathField("Save To", itemsFolder);
         createCatalog = EditorGUILayout.ToggleLeft("Create/Update Catalog.asset", createCatalog);
         createInventory = EditorGUILayout.ToggleLeft("Create Inventory.asset (optional)", createInventory);
@@ -204,39 +202,33 @@ public sealed class MMDressDevHubWindow : EditorWindow
             var catalog = EnsureCatalog($"{itemsFolder}/Catalog.asset");
             int idSeed = UnityEngine.Random.Range(1000, 9999);
 
-            // Tops
+            // Tops (tanpa offset)
             for (int i = 0; i < genTop; i++)
             {
                 var item = ScriptableObject.CreateInstance<ItemSO>();
                 item.id = $"top_{idSeed + i}";
                 item.displayName = $"Top {i + 1}";
                 item.slot = OutfitSlot.Top;
-                item.localPos = Vector3.zero;
-                item.localScale = Vector3.one;
-                item.localRotZ = 0f;
                 var path = $"{itemsFolder}/Top_{i + 1}.asset";
                 AssetDatabase.CreateAsset(item, path);
-                if (createCatalog) catalog.Editor_AddItem(item); // <<— ganti: pakai API editor
+                if (createCatalog) catalog.Editor_AddItem(item);
             }
 
-            // Bottoms
+            // Bottoms (tanpa offset)
             for (int i = 0; i < genBottom; i++)
             {
                 var item = ScriptableObject.CreateInstance<ItemSO>();
                 item.id = $"bottom_{idSeed + genTop + i}";
                 item.displayName = $"Bottom {i + 1}";
                 item.slot = OutfitSlot.Bottom;
-                item.localPos = Vector3.zero;
-                item.localScale = Vector3.one;
-                item.localRotZ = 0f;
                 var path = $"{itemsFolder}/Bottom_{i + 1}.asset";
                 AssetDatabase.CreateAsset(item, path);
-                if (createCatalog) catalog.Editor_AddItem(item); // <<— ganti: pakai API editor
+                if (createCatalog) catalog.Editor_AddItem(item);
             }
 
             if (createCatalog)
             {
-                catalog.Editor_RemoveNulls(); // bersih-bersih kalau ada null
+                catalog.Editor_RemoveNulls();
                 EditorUtility.SetDirty(catalog);
                 AssetDatabase.SaveAssets();
                 AssetDatabase.Refresh();
@@ -258,7 +250,7 @@ public sealed class MMDressDevHubWindow : EditorWindow
     {
         EditorGUILayout.LabelField("Create Prefabs / Scene Helpers", EditorStyles.boldLabel);
 
-        if (GUILayout.Button("Create Customer.prefab (with Anchors & Controller)", GUILayout.Height(26)))
+        if (GUILayout.Button("Create Customer.prefab (with Outfit UI Images)", GUILayout.Height(26)))
             CreateCustomerPrefab();
 
         using (new EditorGUILayout.HorizontalScope())
@@ -394,21 +386,28 @@ public sealed class MMDressDevHubWindow : EditorWindow
         if (customerType == null) { Cleanup(root); EditorUtility.DisplayDialog("MMDress", "CustomerController not found.", "OK"); return; }
         root.AddComponent(customerType);
 
+        // Character parent
         var character = new GameObject("Character");
         character.transform.SetParent(root.transform, false);
 
-        var outfitType = Type.GetType("MMDress.Character.CharacterOutfitController, MMDress.Runtime");
-        if (outfitType == null) { Cleanup(root); EditorUtility.DisplayDialog("MMDress", "CharacterOutfitController not found.", "OK"); return; }
+        // Outfit controller (VERSI UI)
+        var outfitType = Type.GetType("MMDress.UI.CharacterOutfitController, MMDress.Runtime");
+        if (outfitType == null) { Cleanup(root); EditorUtility.DisplayDialog("MMDress", "CharacterOutfitController (UI) not found.", "OK"); return; }
         var outfit = character.AddComponent(outfitType) as MonoBehaviour;
 
-        var top = new GameObject("TopAnchor").transform; top.SetParent(character.transform, false);
-        var bot = new GameObject("BottomAnchor").transform; bot.SetParent(character.transform, false);
-        top.localPosition = new Vector3(0f, 0.6f, 0f);
-        bot.localPosition = new Vector3(0f, 0.0f, 0f);
+        // Buat 2 Image anchors (centered). Posisi/size tinggal atur manual di prefab.
+        var topGO = new GameObject("TopImage", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+        var botGO = new GameObject("BottomImage", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+        topGO.transform.SetParent(character.transform, false);
+        botGO.transform.SetParent(character.transform, false);
 
+        SetupRectCentered(topGO.GetComponent<RectTransform>(), new Vector2(500, 600));
+        SetupRectCentered(botGO.GetComponent<RectTransform>(), new Vector2(600, 720));
+
+        // Assign ke serialized fields: topImage & bottomImage
         var so = new SerializedObject(outfit);
-        so.FindProperty("topAnchor").objectReferenceValue = top;
-        so.FindProperty("bottomAnchor").objectReferenceValue = bot;
+        so.FindProperty("topImage").objectReferenceValue = topGO.GetComponent<Image>();
+        so.FindProperty("bottomImage").objectReferenceValue = botGO.GetComponent<Image>();
         so.ApplyModifiedPropertiesWithoutUndo();
 
         string savePath = $"{prefabsPath}/Character/{customerPrefabName}.prefab";
@@ -422,6 +421,14 @@ public sealed class MMDressDevHubWindow : EditorWindow
             EditorUtility.DisplayDialog("MMDress", $"Prefab saved:\n{savePath}", "OK");
         }
         else EditorUtility.DisplayDialog("MMDress", "Failed to save prefab.", "OK");
+    }
+
+    static void SetupRectCentered(RectTransform rt, Vector2 size)
+    {
+        rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
+        rt.pivot = new Vector2(0.5f, 0.5f);
+        rt.anchoredPosition = Vector2.zero;
+        rt.sizeDelta = size;
     }
 
     void CreateSpawnerInScene()
