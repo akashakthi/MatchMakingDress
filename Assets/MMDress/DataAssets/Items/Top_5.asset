@@ -15,10 +15,13 @@ MonoBehaviour:
   id: top_5
   displayName: Top 5
   slot: 0
-  sprite: {fileID: -3476708935611197262, guid: 7031ecb721e79224ca799dc75e76ef58, type: 3}
-  localPos: {x: 0, y: 1.5, z: 0}
+  sprite: {fileID: 21300000, guid: 3dce9a6d479447f449c8b4b92cc02979, type: 3}
+  localPos: {x: 0, y: 0, z: 0}
   localScale: {x: 1, y: 1, z: 1}
   localRotZ: 0
-  requiresMaterials: 0
-  materialCosts: []
-  price: 0
+  requiresMaterials: 1
+  materialCosts:
+  - material: {fileID: 11400000, guid: 39827433ff149f247a031cd7a7ad65db, type: 2}
+    qty: 1
+  - material: {fileID: 11400000, guid: aa6dd14aca6da944fb9f9ae57a7f704c, type: 2}
+    qty: 1

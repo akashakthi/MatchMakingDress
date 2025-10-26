@@ -1,4 +1,5 @@
 ﻿// Assets/MMDress/Scripts/Runtime/Services/StockService.cs
+using System.Collections.Generic;
 using UnityEngine;
 using MMDress.Data;
 using MMDress.Runtime.Inventory;
@@ -13,12 +14,12 @@ namespace MMDress.Services
         [Header("Auto Find Catalog")]
         [SerializeField] private bool autoFindCatalog = false;
 
-        // Materials
-        int _cloth, _thread;
+        // Materials (SO)
+        private readonly Dictionary<MaterialSO, int> materialStock = new();
 
-        // Garments
-        int[] _tops;     // ukuran = catalog.TopCount
-        int[] _bottoms;  // ukuran = catalog.BottomCount
+        // Garments (backend lama: per-slot arrays → tetap dipakai)
+        int[] _tops;     // size = catalog.TopCount
+        int[] _bottoms;  // size = catalog.BottomCount
 
         public CatalogSO Catalog => catalog;
 
@@ -33,86 +34,122 @@ namespace MMDress.Services
         {
             int t = catalog ? catalog.TopCount : 0;
             int b = catalog ? catalog.BottomCount : 0;
-            _tops = (t > 0) ? new int[t] : new int[0];
-            _bottoms = (b > 0) ? new int[b] : new int[0];
+            _tops = t > 0 ? new int[t] : new int[0];
+            _bottoms = b > 0 ? new int[b] : new int[0];
         }
 
-        // === Materials ===
-        public int GetMaterial(MaterialType t) => t == MaterialType.Cloth ? _cloth : _thread;
+        // ===================== MATERIALS (SO) =====================
+        public int GetMaterial(MaterialSO mat)
+            => (mat && materialStock.TryGetValue(mat, out var v)) ? v : 0;
 
-        public void AddMaterial(MaterialType t, int qty)
+        public void AddMaterial(MaterialSO mat, int qty)
         {
-            if (qty <= 0) return;
-            if (t == MaterialType.Cloth) _cloth += qty;
-            else _thread += qty;
+            if (!mat || qty <= 0) return;
+            materialStock[mat] = GetMaterial(mat) + qty;
         }
 
-        // === Garments (per slot, index relatif) ===
-        public int TopTypes => _tops.Length;
-        public int BottomTypes => _bottoms.Length;
-
-        public int GetGarmentCount(GarmentSlot slot, int relIndex)
+        // ===================== GARMENTS (SO facade) =====================
+        // Map ItemSO → slot array via relative index dari CatalogSO.
+        public int GetGarment(ItemSO item)
         {
-            return slot == GarmentSlot.Top
-                ? (relIndex >= 0 && relIndex < _tops.Length ? _tops[relIndex] : 0)
-                : (relIndex >= 0 && relIndex < _bottoms.Length ? _bottoms[relIndex] : 0);
+            if (!catalog || !item) return 0;
+            int rel = catalog.GetRelativeIndex(item); // index relatif dalam slot item.slot
+            if (rel < 0) return 0;
+            if (item.slot == OutfitSlot.Top)
+                return (rel < _tops.Length) ? _tops[rel] : 0;
+            else
+                return (rel < _bottoms.Length) ? _bottoms[rel] : 0;
         }
 
-        // Craft = ambil 1 kain + 1 benang per item → tambahkan stok baju
+        public void SetGarment(ItemSO item, int count)
+        {
+            if (!catalog || !item) return;
+            int rel = catalog.GetRelativeIndex(item);
+            if (rel < 0) return;
+
+            count = Mathf.Max(0, count);
+            if (item.slot == OutfitSlot.Top)
+            {
+                if (rel < _tops.Length) _tops[rel] = count;
+            }
+            else
+            {
+                if (rel < _bottoms.Length) _bottoms[rel] = count;
+            }
+        }
+
+        public void AddGarment(ItemSO item, int delta)
+        {
+            if (!item || delta == 0) return;
+            int cur = GetGarment(item);
+            SetGarment(item, cur + delta);
+        }
+
+        public bool TryConsumeGarment(ItemSO item, int qty)
+        {
+            if (!item || qty <= 0) return false;
+            int cur = GetGarment(item);
+            if (cur < qty) return false;
+            SetGarment(item, cur - qty);
+            return true;
+        }
+
+        // ===================== CRAFT (pakai MaterialSO costs) =====================
         public bool TryCraft(ItemSO item, int qty)
         {
             if (!item || qty <= 0) return false;
-            int need = qty;
 
-            if (_cloth < need || _thread < need) return false;
-            _cloth -= need; _thread -= need;
-
-            if (item.slot == OutfitSlot.Top)
+            // Cek bahan
+            if (item.requiresMaterials && item.materialCosts != null && item.materialCosts.Count > 0)
             {
-                int rel = catalog.GetRelativeIndex(item);
-                if (rel < 0 || rel >= _tops.Length) return false;
-                _tops[rel] += qty;
+                for (int i = 0; i < item.materialCosts.Count; i++)
+                {
+                    var c = item.materialCosts[i];
+                    if (!c.material) continue;
+                    if (GetMaterial(c.material) < c.qty * qty) return false;
+                }
+                // Konsumsi bahan
+                foreach (var c in item.materialCosts)
+                {
+                    if (!c.material) continue;
+                    materialStock[c.material] = GetMaterial(c.material) - c.qty * qty;
+                }
             }
             else
             {
-                int rel = catalog.GetRelativeIndex(item);
-                if (rel < 0 || rel >= _bottoms.Length) return false;
-                _bottoms[rel] += qty;
+                // Tidak ada requirement → tetap izinkan craft
             }
+
+            AddGarment(item, qty);
             return true;
         }
 
-        // Uncraft = kurangi stok baju (opsional kembalikan bahan)
         public bool TryUncraft(ItemSO item, int qty, bool refundMaterials)
         {
             if (!item || qty <= 0) return false;
+            if (!TryConsumeGarment(item, qty)) return false;
 
-            if (item.slot == OutfitSlot.Top)
+            if (refundMaterials && item.requiresMaterials && item.materialCosts != null)
             {
-                int rel = catalog.GetRelativeIndex(item);
-                if (rel < 0 || rel >= _tops.Length || _tops[rel] < qty) return false;
-                _tops[rel] -= qty;
+                foreach (var c in item.materialCosts)
+                {
+                    if (!c.material) continue;
+                    AddMaterial(c.material, c.qty * qty);
+                }
             }
-            else
-            {
-                int rel = catalog.GetRelativeIndex(item);
-                if (rel < 0 || rel >= _bottoms.Length || _bottoms[rel] < qty) return false;
-                _bottoms[rel] -= qty;
-            }
-
-            if (refundMaterials) { _cloth += qty; _thread += qty; }
             return true;
         }
 
-        // Helper untuk UI lama
+        // ===================== LEGACY HELPER (UI lama masih pakai) =====================
         public ItemSO GetItem(GarmentSlot slot, int relIndex)
         {
             if (!catalog) return null;
             int count = 0;
             foreach (var it in catalog.Items)
             {
-                if (!it || (slot == GarmentSlot.Top ? it.slot != OutfitSlot.Top : it.slot != OutfitSlot.Bottom))
-                    continue;
+                if (!it) continue;
+                if (slot == GarmentSlot.Top && it.slot != OutfitSlot.Top) continue;
+                if (slot == GarmentSlot.Bottom && it.slot != OutfitSlot.Bottom) continue;
                 if (count == relIndex) return it;
                 count++;
             }

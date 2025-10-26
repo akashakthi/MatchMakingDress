@@ -26,18 +26,19 @@ namespace MMDress.Services
 
         void Awake()
         {
-            // load persist
             if (PlayerPrefs.HasKey(PrefKey)) balance = PlayerPrefs.GetInt(PrefKey, balance);
         }
 
         void Start()
         {
-            ServiceLocator.Events?.Publish(new MoneyChanged(0, balance)); // render HUD awal
+            // render HUD awal
+            ServiceLocator.Events?.Publish(new MoneyChanged(0, balance));
         }
 
         void OnEnable()
         {
             if (!enablePayoutOnCheckout) return;
+
             _onCheckout = e =>
             {
                 int amt = e.itemsEquipped >= 2 ? payoutFull :
@@ -58,9 +59,11 @@ namespace MMDress.Services
         {
             if (amount <= 0) return true;
             if (balance < amount) return false;
+
             balance -= amount;
             PlayerPrefs.SetInt(PrefKey, balance);
             PlayerPrefs.Save();
+
             ServiceLocator.Events?.Publish(new MoneyChanged(-amount, balance));
             return true;
         }
@@ -68,10 +71,12 @@ namespace MMDress.Services
         public void Add(int amount)
         {
             if (amount == 0) return;
+
             balance += amount;
             PlayerPrefs.SetInt(PrefKey, balance);
             PlayerPrefs.Save();
-            ServiceLocator.Events?.Publish(new MoneyChanged(amount, balance));
+
+            ServiceLocator.Events?.Publish(new MoneyChanged(+amount, balance));
         }
     }
 }

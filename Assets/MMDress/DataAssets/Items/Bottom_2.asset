@@ -15,10 +15,13 @@ MonoBehaviour:
   id: bottom_3405
   displayName: Bottom 2
   slot: 1
-  sprite: {fileID: 5345219098296120042, guid: 53c1edb90ce806549b5f53647bf45c65, type: 3}
-  localPos: {x: 0, y: -1.5, z: 0}
+  sprite: {fileID: -5759764773913752103, guid: c45d7344bcee1534a865beb0c5cdd46b, type: 3}
+  localPos: {x: 0, y: 0, z: 0}
   localScale: {x: 1, y: 1, z: 1}
   localRotZ: 0
-  requiresMaterials: 0
-  materialCosts: []
-  price: 0
+  requiresMaterials: 1
+  materialCosts:
+  - material: {fileID: 11400000, guid: 39827433ff149f247a031cd7a7ad65db, type: 2}
+    qty: 1
+  - material: {fileID: 11400000, guid: aa6dd14aca6da944fb9f9ae57a7f704c, type: 2}
+    qty: 1

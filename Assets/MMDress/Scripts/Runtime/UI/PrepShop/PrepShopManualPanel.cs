@@ -1,12 +1,21 @@
-﻿using System.Collections.Generic;
+﻿// Assets/MMDress/Scripts/Runtime/UI/PrepShop/PrepShopManualPanel.cs
+using System.Collections.Generic;
 using UnityEngine;
 using TMPro;
 using MMDress.Data;
 using MMDress.Services;
-using InvMaterialType = MMDress.Runtime.Inventory.MaterialType;
+using MMDress.Core;
+using MMDress.UI;
+
+// alias Service events (hindari tabrakan dgn UI/*)
+using SvcPurchaseSucceeded = MMDress.Services.PurchaseSucceeded;
+using SvcPurchaseFailed = MMDress.Services.PurchaseFailed;
+using SvcCraftSucceeded = MMDress.Services.CraftSucceeded;
+using SvcCraftFailed = MMDress.Services.CraftFailed;
 
 namespace MMDress.Runtime.UI.PrepShop
 {
+    [DisallowMultipleComponent]
     public sealed class PrepShopManualPanel : MonoBehaviour
     {
         [Header("Refs")]
@@ -28,12 +37,24 @@ namespace MMDress.Runtime.UI.PrepShop
         [SerializeField] TMP_Text needThreadText;
         [SerializeField] TMP_Text warningText;
 
+        [Header("Material SO Refs")]
+        [SerializeField] private MaterialSO clothMaterial;
+        [SerializeField] private MaterialSO threadMaterial;
+
         [Header("Behaviour")]
-        [SerializeField] bool craftInstantly = true; // <-- nyalain ini supaya + langsung craft
+        [SerializeField] bool craftInstantly = true;
+
+        [Header("Debug")][SerializeField] bool verboseLog = false;
 
         readonly Dictionary<ItemSO, int> _plan = new();
 
         int _snapCloth, _snapThread, _snapMoney;
+
+        System.Action<SvcPurchaseSucceeded> _onBuyOK;
+        System.Action<SvcPurchaseFailed> _onBuyFail;
+        System.Action<SvcCraftSucceeded> _onCraftOK;
+        System.Action<SvcCraftFailed> _onCraftFail;
+        System.Action<MoneyChanged> _onMoney;
 
         void Reset()
         {
@@ -43,23 +64,49 @@ namespace MMDress.Runtime.UI.PrepShop
         void Awake()
         {
             BuildFromCards();
-            SnapshotInventory();
-            RefreshHeader();
-            RecalcPreview();
+            SnapAndRefresh();
         }
 
         void OnEnable()
         {
-            // (penting kalau panel diaktif/non-aktif)
-            BuildFromCards();              // pastikan subscribe ulang
-            SnapshotInventory();
-            RefreshHeader();
-            RecalcPreview();
+            BuildFromCards();
+            HookEvents();
+            SnapAndRefresh();
+        }
+
+        void OnDisable() => UnhookEvents();
+
+        void HookEvents()
+        {
+            _onBuyOK = _ => { if (verboseLog) Debug.Log("[Prep] PurchaseSucceeded"); SnapAndRefresh(); };
+            _onBuyFail = e => { if (verboseLog) Debug.LogWarning($"[Prep] PurchaseFailed: {e.reason}"); };
+            _onCraftOK = _ => { if (verboseLog) Debug.Log("[Prep] CraftSucceeded"); SnapAndRefresh(); };
+            _onCraftFail = e => { if (verboseLog) Debug.LogWarning($"[Prep] CraftFailed: {e.reason}"); };
+
+            ServiceLocator.Events.Subscribe(_onBuyOK);
+            ServiceLocator.Events.Subscribe(_onBuyFail);
+            ServiceLocator.Events.Subscribe(_onCraftOK);
+            ServiceLocator.Events.Subscribe(_onCraftFail);
+
+            _onMoney = e =>
+            {
+                if (moneyText) moneyText.text = $"Rp {e.balance:N0}";
+                if (verboseLog) Debug.Log($"[Prep] MoneyChanged amount={e.amount} balance={e.balance}");
+            };
+            ServiceLocator.Events.Subscribe(_onMoney);
+        }
+
+        void UnhookEvents()
+        {
+            if (_onBuyOK != null) ServiceLocator.Events.Unsubscribe(_onBuyOK);
+            if (_onBuyFail != null) ServiceLocator.Events.Unsubscribe(_onBuyFail);
+            if (_onCraftOK != null) ServiceLocator.Events.Unsubscribe(_onCraftOK);
+            if (_onCraftFail != null) ServiceLocator.Events.Unsubscribe(_onCraftFail);
+            if (_onMoney != null) ServiceLocator.Events.Unsubscribe(_onMoney);
         }
 
         void BuildFromCards()
         {
-            // Unsubscribe lama biar nggak dobel
             foreach (var c in topCards) if (c) c.OnDelta -= OnCardDelta;
             foreach (var c in bottomCards) if (c) c.OnDelta -= OnCardDelta;
 
@@ -77,11 +124,14 @@ namespace MMDress.Runtime.UI.PrepShop
             foreach (var c in bottomCards) Wire(c);
         }
 
+        // === Snapshot + UI ===
         void SnapshotInventory()
         {
-            _snapCloth = procurement ? procurement.GetMaterial(InvMaterialType.Cloth) : 0;
-            _snapThread = procurement ? procurement.GetMaterial(InvMaterialType.Thread) : 0;
+            _snapCloth = procurement ? procurement.GetMaterial(clothMaterial) : 0;
+            _snapThread = procurement ? procurement.GetMaterial(threadMaterial) : 0;
             _snapMoney = procurement != null && procurement.TryGetEconomy(out var eco) ? eco.Balance : 0;
+
+            if (verboseLog) Debug.Log($"[Prep] Snapshot cloth={_snapCloth} thread={_snapThread} money={_snapMoney}");
         }
 
         void RefreshHeader()
@@ -91,7 +141,10 @@ namespace MMDress.Runtime.UI.PrepShop
             if (moneyText) moneyText.text = $"Rp {_snapMoney:N0}";
         }
 
-        int TotalPlanned() { int t = 0; foreach (var kv in _plan) t += kv.Value; return t; }
+        int TotalPlanned()
+        {
+            int t = 0; foreach (var kv in _plan) t += kv.Value; return t;
+        }
         int AvailablePairs() => Mathf.Min(_snapCloth, _snapThread);
 
         void RecalcPreview()
@@ -111,61 +164,64 @@ namespace MMDress.Runtime.UI.PrepShop
             }
         }
 
+        void SnapAndRefresh()
+        {
+            SnapshotInventory();
+            RefreshHeader();
+            RecalcPreview();
+        }
+
+        // === Handler tombol card ===
         void OnCardDelta(PrepCardView view, int delta)
         {
             if (!view || !view.Item) return;
 
-            // MODE: langsung craft
+            // MODE: langsung craft / uncraft
             if (craftInstantly && procurement)
             {
                 if (delta > 0)
                 {
-                    // cek bahan cukup?
-                    if (_snapCloth <= 0 || _snapThread <= 0) return;
+                    // craft 1 item (konsumsi bahan → StockService persist otomatis)
                     if (procurement.CraftByItem(view.Item, 1))
                     {
-                        _snapCloth--; _snapThread--; // update snapshot cepat
-                        view.SetPlanned(_plan.TryGetValue(view.Item, out var v) ? v + 1 : 1);
-                        _plan[view.Item] = _plan.TryGetValue(view.Item, out var vv) ? vv + 1 : 1;
-                        RefreshHeader(); // kalau saldo uang terpakai, disini juga bisa diupdate
-                        RecalcPreview();
+                        int cur = _plan.TryGetValue(view.Item, out var v) ? v : 0;
+                        _plan[view.Item] = cur + 1;
+                        view.SetPlanned(cur + 1);
+                        SnapAndRefresh();
+                    }
+                    else
+                    {
+                        if (verboseLog) Debug.LogWarning("[Prep] Craft gagal (bahan kurang?)");
                     }
                     return;
                 }
                 else
                 {
-                    // kalau mau support undo (uncraft), panggil UncraftByItem(...), kalau ada
+                    // UNCRAFT 1 item → bahan kembali (refundMaterials=true) & persist
                     if (_plan.TryGetValue(view.Item, out var cur) && cur > 0)
                     {
-                        _plan[view.Item] = cur - 1;
-                        view.SetPlanned(cur - 1);
-                        // opsional: kembalikan bahan
-                        _snapCloth++; _snapThread++;
-                        RefreshHeader();
-                        RecalcPreview();
+                        bool ok = procurement.UncraftByItem(view.Item, 1, refundMaterials: true);
+                        if (ok)
+                        {
+                            _plan[view.Item] = cur - 1;
+                            view.SetPlanned(cur - 1);
+                            SnapAndRefresh();
+                        }
+                        else if (verboseLog) Debug.LogWarning("[Prep] Uncraft gagal (stok item 0?)");
                     }
                     return;
                 }
             }
 
-            // MODE: planner (tidak mengurangi bahan sekarang)
+            // MODE: planner (tidak memodifikasi stok sekarang)
             int c = _plan.TryGetValue(view.Item, out var val) ? val : 0;
-            if (delta > 0)
-            {
-                if (TotalPlanned() >= AvailablePairs()) return; // clamp by bahan
-                c += 1;
-            }
-            else
-            {
-                if (c <= 0) return;
-                c -= 1;
-            }
+            c = Mathf.Max(0, c + (delta > 0 ? +1 : -1));
             _plan[view.Item] = c;
             view.SetPlanned(c);
             RecalcPreview();
         }
 
-        // Planner commit (kalau craftInstantly=false pakai tombol ini)
+        // Commit untuk mode planner (craftInstantly=false)
         public void CommitCraft()
         {
             if (!procurement) return;
@@ -176,13 +232,12 @@ namespace MMDress.Runtime.UI.PrepShop
                 if (qty > 0) procurement.CraftByItem(item, qty);
             }
 
-            SnapshotInventory();
-            RefreshHeader();
             foreach (var c in topCards) if (c) c.SetPlanned(0);
             foreach (var c in bottomCards) if (c) c.SetPlanned(0);
             _plan.Clear();
+
+            SnapAndRefresh();
             BuildFromCards();
-            RecalcPreview();
         }
     }
 }

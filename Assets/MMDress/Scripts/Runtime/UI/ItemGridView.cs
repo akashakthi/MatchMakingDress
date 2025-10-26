@@ -56,8 +56,8 @@ namespace MMDress.UI
                 var data = _buffer[i];
                 btn.Bind(data);
 
-                // tampilkan stok jika service ada
-                if (stock) btn.BindStock(GetStockCountForItem(stock, catalog, data));
+                // tampilkan stok jika service ada (SO-only)
+                if (stock) btn.BindStock(GetStockCountForItem(stock, data));
 
                 btn.SetSelected(data == _selected);
                 btn.Clicked += OnClickedProxy;
@@ -69,7 +69,7 @@ namespace MMDress.UI
         private static void FilterCatalogBySlot(CatalogSO cat, OutfitSlot s, List<ItemSO> dst)
         {
             dst.Clear();
-            var list = cat.Items;               // IReadOnlyList<ItemSO>
+            var list = cat.Items;
             for (int i = 0; i < list.Count; i++)
             {
                 var it = list[i];
@@ -77,24 +77,16 @@ namespace MMDress.UI
             }
         }
 
-        // Ambil stok dari StockService berdasarkan item (pakai index relatif + slot)
-        private static int GetStockCountForItem(StockService stock, CatalogSO cat, ItemSO item)
+        // Ambil stok dari StockService berdasarkan ItemSO (SO-only)
+        private static int GetStockCountForItem(StockService stock, ItemSO item)
         {
-            if (!stock || !cat || !item) return 0;
-
-            // map OutfitSlot → GarmentSlot
-            var gslot = item.slot == OutfitSlot.Top
-                ? MMDress.Runtime.Inventory.GarmentSlot.Top
-                : MMDress.Runtime.Inventory.GarmentSlot.Bottom;
-
-            int rel = cat.GetRelativeIndex(item);   // 0..N-1 untuk slot tersebut
-            if (rel < 0) return 0;
-
-            return stock.GetGarmentCount(gslot, rel);
+            if (!stock || !item) return 0;
+            return stock.GetGarment(item);
         }
 
         private void EnsurePool(int need)
         {
+            // tambah jika kurang
             while (_buttons.Count < need)
             {
                 var go = Instantiate(buttonPrefab, content);
@@ -107,6 +99,10 @@ namespace MMDress.UI
                 }
                 _buttons.Add(btn);
             }
+
+            // nonaktifkan kelebihan
+            for (int i = need; i < _buttons.Count; i++)
+                if (_buttons[i]) _buttons[i].gameObject.SetActive(false);
         }
 
         private void OnClickedProxy(ItemSO item)
