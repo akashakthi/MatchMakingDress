@@ -1,10 +1,13 @@
 fileFormatVersion: 2
-guid: 7031ecb721e79224ca799dc75e76ef58
+guid: dcf48a285e9655340bf68b7cfc590b22
 TextureImporter:
   internalIDToNameTable:
   - first:
-      213: -3476708935611197262
-    second: Jogja atas_0
+      213: 685413858556521027
+    second: Body 1_0
+  - first:
+      213: -7081533001406335104
+    second: Body 1_1
   externalObjects: {}
   serializedVersion: 13
   mipmaps:
@@ -139,13 +142,13 @@ TextureImporter:
     serializedVersion: 2
     sprites:
     - serializedVersion: 2
-      name: Jogja atas_0
+      name: Body 1_0
       rect:
         serializedVersion: 2
-        x: 0
-        y: 1358
-        width: 1691
-        height: 2370
+        x: 806
+        y: 551
+        width: 1696
+        height: 3732
       alignment: 0
       pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -154,8 +157,30 @@ TextureImporter:
       physicsShape: []
       tessellationDetail: -1
       bones: []
-      spriteID: 2b8d779b4af30cfc0800000000000000
-      internalID: -3476708935611197262
+      spriteID: 34a246bd544138900800000000000000
+      internalID: 685413858556521027
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Body 1_1
+      rect:
+        serializedVersion: 2
+        x: 1713
+        y: 4281
+        width: 80
+        height: 7
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 08738f9314759bd90800000000000000
+      internalID: -7081533001406335104
       vertices: []
       indices: 
       edges: []
@@ -164,7 +189,7 @@ TextureImporter:
     customData: 
     physicsShape: []
     bones: []
-    spriteID: 5e97eb03825dee720800000000000000
+    spriteID: 
     internalID: 0
     vertices: []
     indices: 
@@ -173,8 +198,7 @@ TextureImporter:
     secondaryTextures: []
     spriteCustomMetadata:
       entries: []
-    nameFileIdTable:
-      Jogja atas_0: -3476708935611197262
+    nameFileIdTable: {}
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 

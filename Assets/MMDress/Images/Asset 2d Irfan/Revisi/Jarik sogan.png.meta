@@ -1,10 +1,10 @@
 fileFormatVersion: 2
-guid: 7031ecb721e79224ca799dc75e76ef58
+guid: fbd412574f6de414180b6e928716bec0
 TextureImporter:
   internalIDToNameTable:
   - first:
-      213: -3476708935611197262
-    second: Jogja atas_0
+      213: 3254519311204353765
+    second: Jarik sogan_0
   externalObjects: {}
   serializedVersion: 13
   mipmaps:
@@ -139,13 +139,13 @@ TextureImporter:
     serializedVersion: 2
     sprites:
     - serializedVersion: 2
-      name: Jogja atas_0
+      name: Jarik sogan_0
       rect:
         serializedVersion: 2
         x: 0
-        y: 1358
-        width: 1691
-        height: 2370
+        y: 0
+        width: 838
+        height: 1999
       alignment: 0
       pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -154,8 +154,8 @@ TextureImporter:
       physicsShape: []
       tessellationDetail: -1
       bones: []
-      spriteID: 2b8d779b4af30cfc0800000000000000
-      internalID: -3476708935611197262
+      spriteID: 5e60cf202106a2d20800000000000000
+      internalID: 3254519311204353765
       vertices: []
       indices: 
       edges: []
@@ -164,7 +164,7 @@ TextureImporter:
     customData: 
     physicsShape: []
     bones: []
-    spriteID: 5e97eb03825dee720800000000000000
+    spriteID: 
     internalID: 0
     vertices: []
     indices: 
@@ -173,8 +173,7 @@ TextureImporter:
     secondaryTextures: []
     spriteCustomMetadata:
       entries: []
-    nameFileIdTable:
-      Jogja atas_0: -3476708935611197262
+    nameFileIdTable: {}
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 

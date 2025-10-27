@@ -1,10 +1,10 @@
 fileFormatVersion: 2
-guid: 7031ecb721e79224ca799dc75e76ef58
+guid: 14249fe13bb295946beabb3f2d5713aa
 TextureImporter:
   internalIDToNameTable:
   - first:
-      213: -3476708935611197262
-    second: Jogja atas_0
+      213: 212757242726216986
+    second: PlayBg_0
   externalObjects: {}
   serializedVersion: 13
   mipmaps:
@@ -46,7 +46,7 @@ TextureImporter:
   nPOTScale: 0
   lightmap: 0
   compressionQuality: 50
-  spriteMode: 2
+  spriteMode: 1
   spriteExtrude: 1
   spriteMeshType: 1
   alignment: 0
@@ -139,13 +139,13 @@ TextureImporter:
     serializedVersion: 2
     sprites:
     - serializedVersion: 2
-      name: Jogja atas_0
+      name: PlayBg_0
       rect:
         serializedVersion: 2
         x: 0
-        y: 1358
-        width: 1691
-        height: 2370
+        y: 0
+        width: 477
+        height: 192
       alignment: 0
       pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -154,8 +154,8 @@ TextureImporter:
       physicsShape: []
       tessellationDetail: -1
       bones: []
-      spriteID: 2b8d779b4af30cfc0800000000000000
-      internalID: -3476708935611197262
+      spriteID: a157614c59dd3f200800000000000000
+      internalID: 212757242726216986
       vertices: []
       indices: 
       edges: []
@@ -174,7 +174,7 @@ TextureImporter:
     spriteCustomMetadata:
       entries: []
     nameFileIdTable:
-      Jogja atas_0: -3476708935611197262
+      PlayBg_0: 212757242726216986
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 
