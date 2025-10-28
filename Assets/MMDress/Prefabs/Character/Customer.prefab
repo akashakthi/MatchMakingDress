@@ -464,7 +464,14 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   topImage: {fileID: 0}
   bottomImage: {fileID: 0}
+  layoutMode: 0
   preserveAspect: 1
+  disableRaycastOnImages: 1
+  topPosY01: 0.62
+  bottomPosY01: 0.36
+  topHeightFactor: 0.48
+  bottomHeightFactor: 0.48
+  useSafeArea: 1
 --- !u!1 &5225548709671370750
 GameObject:
   m_ObjectHideFlags: 0
