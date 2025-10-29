@@ -14,6 +14,7 @@ GameObject:
   - component: {fileID: 3536193638109412727}
   - component: {fileID: 5609021067655370924}
   - component: {fileID: 4921839372231263025}
+  - component: {fileID: 6422788867885728206}
   m_Layer: 0
   m_Name: Customer
   m_TagString: Untagged
@@ -144,6 +145,29 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   currentOrder: {fileID: 0}
   verbose: 1
+--- !u!114 &6422788867885728206
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 250001714375331451}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1cccb3d76a4b38d4697448acf521e73b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  playOnEnable: 1
+  ignoreTimeScale: 0
+  startDelay: 0
+  startScale: {x: 1.15, y: 0.85}
+  overshootScale: 1.03
+  inDuration: 0.2
+  settleDuration: 0.1
+  inEase: 27
+  settleEase: 3
+  durationJitter: 0.1
+  scaleJitter: 0.05
 --- !u!1 &891914601644726236
 GameObject:
   m_ObjectHideFlags: 0

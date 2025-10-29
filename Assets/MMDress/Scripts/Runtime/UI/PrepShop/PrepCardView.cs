@@ -1,5 +1,4 @@
-﻿// Assets/MMDress/Scripts/Runtime/UI/PrepShop/PrepCardView.cs
-using System;
+﻿using System;
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
@@ -17,7 +16,7 @@ namespace MMDress.Runtime.UI.PrepShop
         [SerializeField] private Button minusButton;
 
         [Header("Manual Mapping (optional)")]
-        [SerializeField] private ItemSO manualItem;   // taruh ItemSO di Inspector kalau mau
+        [SerializeField] private ItemSO manualItem;
         public ItemSO Item => manualItem;
 
         [Header("Debug")]
@@ -31,10 +30,9 @@ namespace MMDress.Runtime.UI.PrepShop
         void Awake()
         {
             AutoWireChildren();
-            MakeNonBlocking(iconImage);          // biar klik nggak ketahan icon
+            MakeNonBlocking(iconImage);
             if (qtyText) qtyText.raycastTarget = false;
 
-            // pasang listener aman (hapus dulu supaya nggak double kalau domain reload)
             if (plusButton)
             {
                 plusButton.onClick.RemoveAllListeners();
@@ -50,7 +48,6 @@ namespace MMDress.Runtime.UI.PrepShop
                 minusButton.onClick.RemoveAllListeners();
                 minusButton.onClick.AddListener(() =>
                 {
-                    if (_planned <= 0) return;
                     if (logClicks) Debug.Log($"[PrepCardView] MINUS clicked ({GetItemLabel()})", this);
                     OnDelta?.Invoke(this, -1);
                 });
@@ -81,18 +78,16 @@ namespace MMDress.Runtime.UI.PrepShop
         {
             _planned = Mathf.Max(0, qty);
             if (qtyText) qtyText.text = _planned.ToString();
-            if (minusButton) minusButton.interactable = _planned > 0;
+            if (minusButton) minusButton.interactable = true; // selalu bisa uncraft
         }
 
         // --- helpers ---
 
         void AutoWireChildren()
         {
-            // Cari icon & qty jika belum di-assign
             if (!iconImage) iconImage = GetComponentInChildren<Image>(true);
             if (!qtyText) qtyText = GetComponentInChildren<TMP_Text>(true);
 
-            // Cari plus/minus berdasarkan nama child (mengandung "plus"/"minus")
             if (!plusButton || !minusButton)
             {
                 var buttons = GetComponentsInChildren<Button>(true);

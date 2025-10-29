@@ -70,5 +70,28 @@ namespace MMDress.Runtime.Timer
                 _ => 960f + t * 480f, // 16:00–24:00
             };
         }
+        // === Tambahan API publik agar bisa lompat fase secara eksplisit ===
+        public void JumpToPhase(DayPhase phase)
+        {
+            // map enum ke index internal
+            _idx = phase switch
+            {
+                DayPhase.Night => 0,
+                DayPhase.Prep => 1,
+                DayPhase.Open => 2,
+                DayPhase.Closed => 3,
+                _ => 0
+            };
+
+            _timer = 0f;
+            CurrentPhase = phase;
+            DayPhaseChanged?.Invoke(CurrentPhase);
+        }
+
+        /// <summary>Shortcut: lompat langsung ke jam 08:00 (fase Open).</summary>
+        public void JumpToOpen()
+        {
+            JumpToPhase(DayPhase.Open);
+        }
     }
 }

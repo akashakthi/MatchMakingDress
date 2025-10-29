@@ -1,5 +1,4 @@
-﻿// Assets/MMDress/Scripts/Runtime/UI/PrepShop/PrepShopManualPanel.cs
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using UnityEngine;
 using TMPro;
 using MMDress.Data;
@@ -61,7 +60,7 @@ namespace MMDress.Runtime.UI.PrepShop
             if (!procurement) procurement = FindObjectOfType<ProcurementService>(true);
         }
 
-        void Awake()
+        void Start()
         {
             BuildFromCards();
             SnapAndRefresh();
@@ -122,6 +121,8 @@ namespace MMDress.Runtime.UI.PrepShop
 
             foreach (var c in topCards) Wire(c);
             foreach (var c in bottomCards) Wire(c);
+
+            RefreshCardStocks(); // << tampilkan stok aktual di awal
         }
 
         // === Snapshot + UI ===
@@ -139,6 +140,22 @@ namespace MMDress.Runtime.UI.PrepShop
             if (clothText) clothText.text = _snapCloth.ToString();
             if (threadText) threadText.text = _snapThread.ToString();
             if (moneyText) moneyText.text = $"Rp {_snapMoney:N0}";
+        }
+
+        // tampilkan stok ItemSO aktual pada kartu
+        void RefreshCardStocks()
+        {
+            if (!procurement) return;
+
+            void Set(PrepCardView c)
+            {
+                if (!c || !c.Item) return;
+                int stockCount = procurement.GetGarment(c.Item);
+                c.SetPlanned(stockCount);
+            }
+
+            foreach (var c in topCards) Set(c);
+            foreach (var c in bottomCards) Set(c);
         }
 
         int TotalPlanned()
@@ -168,6 +185,7 @@ namespace MMDress.Runtime.UI.PrepShop
         {
             SnapshotInventory();
             RefreshHeader();
+            RefreshCardStocks(); // << update angka kartu setiap refresh
             RecalcPreview();
         }
 
@@ -181,7 +199,6 @@ namespace MMDress.Runtime.UI.PrepShop
             {
                 if (delta > 0)
                 {
-                    // craft 1 item (konsumsi bahan → StockService persist otomatis)
                     if (procurement.CraftByItem(view.Item, 1))
                     {
                         int cur = _plan.TryGetValue(view.Item, out var v) ? v : 0;
@@ -189,15 +206,11 @@ namespace MMDress.Runtime.UI.PrepShop
                         view.SetPlanned(cur + 1);
                         SnapAndRefresh();
                     }
-                    else
-                    {
-                        if (verboseLog) Debug.LogWarning("[Prep] Craft gagal (bahan kurang?)");
-                    }
+                    else if (verboseLog) Debug.LogWarning("[Prep] Craft gagal (bahan kurang?)");
                     return;
                 }
                 else
                 {
-                    // UNCRAFT 1 item → bahan kembali (refundMaterials=true) & persist
                     if (_plan.TryGetValue(view.Item, out var cur) && cur > 0)
                     {
                         bool ok = procurement.UncraftByItem(view.Item, 1, refundMaterials: true);
@@ -208,6 +221,12 @@ namespace MMDress.Runtime.UI.PrepShop
                             SnapAndRefresh();
                         }
                         else if (verboseLog) Debug.LogWarning("[Prep] Uncraft gagal (stok item 0?)");
+                    }
+                    else
+                    {
+                        // walau plan 0, tetap coba uncraft → Snap akan sync jumlah
+                        if (procurement.UncraftByItem(view.Item, 1, refundMaterials: true))
+                            SnapAndRefresh();
                     }
                     return;
                 }

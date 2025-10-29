@@ -6,66 +6,117 @@ using MMDress.Runtime.Inventory;
 
 namespace MMDress.Services
 {
+    [DefaultExecutionOrder(100)]                      // siap lebih dulu dari persistence (1000)
+    [DisallowMultipleComponent]
     public sealed class StockService : MonoBehaviour
     {
         [Header("Sumber item (katalog yang sama dengan Fitting)")]
         [SerializeField] private CatalogSO catalog;
 
-        [Header("Auto Find Catalog")]
+        [Header("Auto Find Catalog (Resources/Catalog.asset)")]
         [SerializeField] private bool autoFindCatalog = false;
 
-        // Materials (SO)
-        private readonly Dictionary<MaterialSO, int> materialStock = new();
+        // ===== MATERIALS (by ID agar kebal beda instance SO) =====
+        [SerializeField] private bool useNameAsIdIfEmpty = true;
+        private readonly Dictionary<string, int> _materialById = new();
 
-        // Garments (backend lama: per-slot arrays → tetap dipakai)
-        int[] _tops;     // size = catalog.TopCount
-        int[] _bottoms;  // size = catalog.BottomCount
+        // ===== GARMENTS (per-slot arrays) =====
+        private int[] _tops;     // size = catalog.TopCount
+        private int[] _bottoms;  // size = catalog.BottomCount
 
         public CatalogSO Catalog => catalog;
 
         void Awake()
         {
             if (autoFindCatalog && !catalog)
-                catalog = Resources.Load<CatalogSO>("Catalog"); // opsional
+                catalog = Resources.Load<CatalogSO>("Catalog");
+
+            if (!catalog)
+                Debug.LogError("[Stock] CatalogSO belum di-assign. Garment tidak akan tersimpan/terapply!", this);
+
             ResizeArrays();
         }
 
+        // === internal ===
         void ResizeArrays()
         {
             int t = catalog ? catalog.TopCount : 0;
             int b = catalog ? catalog.BottomCount : 0;
-            _tops = t > 0 ? new int[t] : new int[0];
-            _bottoms = b > 0 ? new int[b] : new int[0];
+            _tops = t > 0 ? new int[t] : System.Array.Empty<int>();
+            _bottoms = b > 0 ? new int[b] : System.Array.Empty<int>();
         }
 
-        // ===================== MATERIALS (SO) =====================
+        string MatId(MaterialSO m)
+        {
+            if (!m) return null;
+            if (!string.IsNullOrEmpty(m.id)) return m.id;
+            return useNameAsIdIfEmpty ? m.name : null;
+        }
+
+        // ===================== MATERIALS API =====================
         public int GetMaterial(MaterialSO mat)
-            => (mat && materialStock.TryGetValue(mat, out var v)) ? v : 0;
+        {
+            var id = MatId(mat);
+            if (string.IsNullOrEmpty(id)) return 0;
+            return _materialById.TryGetValue(id, out var v) ? v : 0;
+        }
+
+        public void SetMaterial(MaterialSO mat, int amount)
+        {
+            var id = MatId(mat);
+            if (string.IsNullOrEmpty(id)) return;
+            _materialById[id] = Mathf.Max(0, amount);
+        }
 
         public void AddMaterial(MaterialSO mat, int qty)
         {
-            if (!mat || qty <= 0) return;
-            materialStock[mat] = GetMaterial(mat) + qty;
+            var id = MatId(mat);
+            if (string.IsNullOrEmpty(id) || qty == 0) return;
+            int cur = GetMaterial(mat);
+            SetMaterial(mat, cur + qty);
         }
 
-        // ===================== GARMENTS (SO facade) =====================
-        // Map ItemSO → slot array via relative index dari CatalogSO.
+        // ===================== GARMENTS API =====================
         public int GetGarment(ItemSO item)
         {
-            if (!catalog || !item) return 0;
-            int rel = catalog.GetRelativeIndex(item); // index relatif dalam slot item.slot
-            if (rel < 0) return 0;
-            if (item.slot == OutfitSlot.Top)
-                return (rel < _tops.Length) ? _tops[rel] : 0;
-            else
-                return (rel < _bottoms.Length) ? _bottoms[rel] : 0;
+            if (!catalog)
+            {
+                Debug.LogError("[Stock] GetGarment() dipanggil tanpa Catalog.", this);
+                return 0;
+            }
+            if (!item) return 0;
+
+            int rel = catalog.GetRelativeIndex(item);
+            if (rel < 0)
+            {
+#if UNITY_EDITOR
+                Debug.LogWarning($"[Stock] Item '{item.name}' tidak ditemukan di CatalogSO.", item);
+#endif
+                return 0;
+            }
+
+            return item.slot == OutfitSlot.Top
+                ? (rel < _tops.Length ? _tops[rel] : 0)
+                : (rel < _bottoms.Length ? _bottoms[rel] : 0);
         }
 
         public void SetGarment(ItemSO item, int count)
         {
-            if (!catalog || !item) return;
+            if (!catalog)
+            {
+                Debug.LogError("[Stock] SetGarment() diabaikan karena Catalog null.", this);
+                return;
+            }
+            if (!item) return;
+
             int rel = catalog.GetRelativeIndex(item);
-            if (rel < 0) return;
+            if (rel < 0)
+            {
+#if UNITY_EDITOR
+                Debug.LogWarning($"[Stock] SetGarment abaikan: '{item.name}' tidak ada di CatalogSO.", item);
+#endif
+                return;
+            }
 
             count = Mathf.Max(0, count);
             if (item.slot == OutfitSlot.Top)
@@ -94,32 +145,40 @@ namespace MMDress.Services
             return true;
         }
 
-        // ===================== CRAFT (pakai MaterialSO costs) =====================
+        // ===================== CRAFT / UNCRAFT =====================
         public bool TryCraft(ItemSO item, int qty)
         {
             if (!item || qty <= 0) return false;
 
-            // Cek bahan
+            // 1) Validasi bahan
             if (item.requiresMaterials && item.materialCosts != null && item.materialCosts.Count > 0)
             {
                 for (int i = 0; i < item.materialCosts.Count; i++)
                 {
                     var c = item.materialCosts[i];
                     if (!c.material) continue;
-                    if (GetMaterial(c.material) < c.qty * qty) return false;
+                    int have = GetMaterial(c.material);
+                    int need = c.qty * qty;
+                    if (have < need)
+                    {
+#if UNITY_EDITOR
+                        Debug.LogWarning($"[Stock] Bahan kurang: {c.material?.displayName} have={have} need={need} untuk {item.displayName} x{qty}", item);
+#endif
+                        return false;
+                    }
                 }
-                // Konsumsi bahan
-                foreach (var c in item.materialCosts)
+
+                // 2) Konsumsi bahan
+                for (int i = 0; i < item.materialCosts.Count; i++)
                 {
+                    var c = item.materialCosts[i];
                     if (!c.material) continue;
-                    materialStock[c.material] = GetMaterial(c.material) - c.qty * qty;
+                    int cur = GetMaterial(c.material);
+                    SetMaterial(c.material, cur - c.qty * qty);
                 }
-            }
-            else
-            {
-                // Tidak ada requirement → tetap izinkan craft
             }
 
+            // 3) Tambah garment
             AddGarment(item, qty);
             return true;
         }
@@ -131,8 +190,9 @@ namespace MMDress.Services
 
             if (refundMaterials && item.requiresMaterials && item.materialCosts != null)
             {
-                foreach (var c in item.materialCosts)
+                for (int i = 0; i < item.materialCosts.Count; i++)
                 {
+                    var c = item.materialCosts[i];
                     if (!c.material) continue;
                     AddMaterial(c.material, c.qty * qty);
                 }
@@ -140,7 +200,7 @@ namespace MMDress.Services
             return true;
         }
 
-        // ===================== LEGACY HELPER (UI lama masih pakai) =====================
+        // ===================== LEGACY HELPER (UI lama) =====================
         public ItemSO GetItem(GarmentSlot slot, int relIndex)
         {
             if (!catalog) return null;
