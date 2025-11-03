@@ -1,10 +1,10 @@
 fileFormatVersion: 2
-guid: e2dd04d973630a04aaca6a72681e4d19
+guid: 46d7f34bee2345e4c93d825cd7dcacbd
 TextureImporter:
   internalIDToNameTable:
   - first:
-      213: 470584772107067378
-    second: BackgroundTopBarView_0
+      213: 6489742774396644706
+    second: bORDERorDER_0
   externalObjects: {}
   serializedVersion: 13
   mipmaps:
@@ -51,7 +51,7 @@ TextureImporter:
   spriteMeshType: 1
   alignment: 0
   spritePivot: {x: 0.5, y: 0.5}
-  spritePixelsToUnits: 104
+  spritePixelsToUnits: 100
   spriteBorder: {x: 0, y: 0, z: 0, w: 0}
   spriteGenerateFallbackPhysicsShape: 1
   alphaUsage: 1
@@ -139,13 +139,13 @@ TextureImporter:
     serializedVersion: 2
     sprites:
     - serializedVersion: 2
-      name: BackgroundTopBarView_0
+      name: bORDERorDER_0
       rect:
         serializedVersion: 2
-        x: 0
-        y: 0
-        width: 912
-        height: 175
+        x: 2
+        y: 2
+        width: 171
+        height: 211
       alignment: 0
       pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -154,8 +154,8 @@ TextureImporter:
       physicsShape: []
       tessellationDetail: -1
       bones: []
-      spriteID: 2ff56226b5ad78600800000000000000
-      internalID: 470584772107067378
+      spriteID: 26de19f4ba2301a50800000000000000
+      internalID: 6489742774396644706
       vertices: []
       indices: 
       edges: []
@@ -174,7 +174,7 @@ TextureImporter:
     spriteCustomMetadata:
       entries: []
     nameFileIdTable:
-      BackgroundTopBarView_0: 470584772107067378
+      bORDERorDER_0: 6489742774396644706
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 
