@@ -15,7 +15,7 @@ MonoBehaviour:
   id: top_1
   displayName: Top 1
   slot: 0
-  sprite: {fileID: 7008431911406251333, guid: 16912fc299908ed429e1820599ae198f, type: 3}
+  sprite: {fileID: -6941477882693272257, guid: 64737aee33656ec47bd26c14bfa94b4f, type: 3}
   requiresMaterials: 1
   materialCosts:
   - material: {fileID: 11400000, guid: 39827433ff149f247a031cd7a7ad65db, type: 2}

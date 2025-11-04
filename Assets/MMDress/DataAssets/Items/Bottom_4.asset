@@ -15,10 +15,7 @@ MonoBehaviour:
   id: bottom_3406
   displayName: Bottom 3
   slot: 1
-  sprite: {fileID: 806545938042700365, guid: 36e2acb03931d7440a88c339ca10cf52, type: 3}
-  localPos: {x: 0, y: 0, z: 0}
-  localScale: {x: 1, y: 1, z: 1}
-  localRotZ: 0
+  sprite: {fileID: -3206868898572292674, guid: 94359871c46fda94ab119e39d87dcc70, type: 3}
   requiresMaterials: 1
   materialCosts:
   - material: {fileID: 11400000, guid: 39827433ff149f247a031cd7a7ad65db, type: 2}

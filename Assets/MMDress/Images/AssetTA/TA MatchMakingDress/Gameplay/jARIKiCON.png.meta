@@ -1,10 +1,10 @@
 fileFormatVersion: 2
-guid: e0f7114700315d345bf99a3313431672
+guid: 52d8d103482287e4f8fda24c1694b752
 TextureImporter:
   internalIDToNameTable:
   - first:
-      213: 540196258604617454
-    second: BGMulaiBerjualan_0
+      213: -5235890673881447867
+    second: jARIKiCON_0
   externalObjects: {}
   serializedVersion: 13
   mipmaps:
@@ -46,7 +46,7 @@ TextureImporter:
   nPOTScale: 0
   lightmap: 0
   compressionQuality: 50
-  spriteMode: 1
+  spriteMode: 2
   spriteExtrude: 1
   spriteMeshType: 1
   alignment: 0
@@ -139,13 +139,13 @@ TextureImporter:
     serializedVersion: 2
     sprites:
     - serializedVersion: 2
-      name: BGMulaiBerjualan_0
+      name: jARIKiCON_0
       rect:
         serializedVersion: 2
         x: 0
         y: 0
-        width: 365
-        height: 103
+        width: 102
+        height: 109
       alignment: 0
       pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -154,8 +154,8 @@ TextureImporter:
       physicsShape: []
       tessellationDetail: -1
       bones: []
-      spriteID: eee8f1792a92f7700800000000000000
-      internalID: 540196258604617454
+      spriteID: 542048c4c216657b0800000000000000
+      internalID: -5235890673881447867
       vertices: []
       indices: 
       edges: []
@@ -164,7 +164,7 @@ TextureImporter:
     customData: 
     physicsShape: []
     bones: []
-    spriteID: 5e97eb03825dee720800000000000000
+    spriteID: 
     internalID: 0
     vertices: []
     indices: 
@@ -173,8 +173,7 @@ TextureImporter:
     secondaryTextures: []
     spriteCustomMetadata:
       entries: []
-    nameFileIdTable:
-      BGMulaiBerjualan_0: 540196258604617454
+    nameFileIdTable: {}
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 
