@@ -173,7 +173,8 @@ TextureImporter:
     secondaryTextures: []
     spriteCustomMetadata:
       entries: []
-    nameFileIdTable: {}
+    nameFileIdTable:
+      baju ungu_0: 8505688482230748880
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 

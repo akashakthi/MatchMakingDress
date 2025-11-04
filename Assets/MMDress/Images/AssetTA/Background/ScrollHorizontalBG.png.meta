@@ -173,7 +173,8 @@ TextureImporter:
     secondaryTextures: []
     spriteCustomMetadata:
       entries: []
-    nameFileIdTable: {}
+    nameFileIdTable:
+      ScrollHorizontalBG_0: -855349015679960065
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 

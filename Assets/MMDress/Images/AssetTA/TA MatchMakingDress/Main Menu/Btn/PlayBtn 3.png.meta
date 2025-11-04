@@ -173,7 +173,8 @@ TextureImporter:
     secondaryTextures: []
     spriteCustomMetadata:
       entries: []
-    nameFileIdTable: {}
+    nameFileIdTable:
+      PlayBtn 3_0: 4439731181128334850
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 

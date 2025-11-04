@@ -173,7 +173,8 @@ TextureImporter:
     secondaryTextures: []
     spriteCustomMetadata:
       entries: []
-    nameFileIdTable: {}
+    nameFileIdTable:
+      foregroundwaitingbar_0: 324519583458393465
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 

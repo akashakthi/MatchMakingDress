@@ -173,7 +173,8 @@ TextureImporter:
     secondaryTextures: []
     spriteCustomMetadata:
       entries: []
-    nameFileIdTable: {}
+    nameFileIdTable:
+      Kartini_0: 7212768193189222568
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 

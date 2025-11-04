@@ -173,7 +173,8 @@ TextureImporter:
     secondaryTextures: []
     spriteCustomMetadata:
       entries: []
-    nameFileIdTable: {}
+    nameFileIdTable:
+      baju kuning_0: 2349113263143375161
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 

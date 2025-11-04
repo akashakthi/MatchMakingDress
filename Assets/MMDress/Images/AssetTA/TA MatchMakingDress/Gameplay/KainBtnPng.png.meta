@@ -173,7 +173,8 @@ TextureImporter:
     secondaryTextures: []
     spriteCustomMetadata:
       entries: []
-    nameFileIdTable: {}
+    nameFileIdTable:
+      KainBtnPng_0: 6331057054540235116
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 

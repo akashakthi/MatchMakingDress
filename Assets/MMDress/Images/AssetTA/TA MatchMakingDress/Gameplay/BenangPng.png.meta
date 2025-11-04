@@ -173,7 +173,8 @@ TextureImporter:
     secondaryTextures: []
     spriteCustomMetadata:
       entries: []
-    nameFileIdTable: {}
+    nameFileIdTable:
+      BenangPng_0: -2927218681702994371
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 

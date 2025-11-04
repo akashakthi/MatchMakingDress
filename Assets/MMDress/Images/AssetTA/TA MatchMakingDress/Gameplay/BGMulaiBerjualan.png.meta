@@ -173,7 +173,8 @@ TextureImporter:
     secondaryTextures: []
     spriteCustomMetadata:
       entries: []
-    nameFileIdTable: {}
+    nameFileIdTable:
+      BGMulaiBerjualan_0: 540196258604617454
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 
