@@ -1,5 +1,6 @@
 ﻿using UnityEngine;
 using UnityEngine.UI;
+using TMPro;                       // untuk label TMP
 using MMDress.Core;
 using MMDress.Gameplay;
 using MMDress.Data;
@@ -8,7 +9,14 @@ using MMDress.Runtime.Fitting;    // FittingSession
 
 namespace MMDress.UI
 {
-    /// Fitting UI (hybrid close).
+    /// <summary>
+    /// Fitting UI (no Close button):
+    /// - Soft-preview per slot (Top/Bottom) bertahan lintas tab.
+    /// - Equip = commit semua soft-preview lalu auto-close.
+    /// - Render preview = kombinasi (soft ?? equipped).
+    /// - Label judul slot dinamis: "Kebaya" (Top) / "Jarik" (Bottom).
+    /// - Prefill tanpa akses CatalogSO.items: pakai session.Equipped* atau defaultTop/defaultBottom dari Inspector.
+    /// </summary>
     [DisallowMultipleComponent]
     [AddComponentMenu("MMDress/UI/Fitting Room UI")]
     public sealed class FittingRoomUI : MonoBehaviour
@@ -17,7 +25,7 @@ namespace MMDress.UI
         [SerializeField] private GameObject panelRoot;
 
         [Header("Data")]
-        [SerializeField] private CatalogSO catalog;
+        [SerializeField] private CatalogSO catalog;          // tetap diset agar ItemGridView bisa baca via API internalnya
 
         [Header("List (Horizontal)")]
         [SerializeField] private ItemGridView listView;
@@ -29,7 +37,9 @@ namespace MMDress.UI
         [SerializeField] private Button tabTopButton;
         [SerializeField] private Button tabBottomButton;
         [SerializeField] private Button equipButton;
-        [SerializeField] private Button closeButton;
+
+        [Header("Labels (UI)")]
+        [SerializeField] private TMP_Text slotTitleLabel;    // label judul slot
 
         [Header("Fitting Session")]
         [SerializeField] private FittingSession session;
@@ -41,11 +51,23 @@ namespace MMDress.UI
         [SerializeField] private bool autoFindInChildren = true;
         [SerializeField] private bool autoFindSession = true;
 
+        [Header("Defaults (tanpa akses CatalogSO.items)")]
+        [SerializeField] private ItemSO defaultTop;          // drag contoh Kebaya default di Inspector
+        [SerializeField] private ItemSO defaultBottom;       // drag contoh Jarik default di Inspector
+
+        // --- State ---
         private Customer.CustomerController _current;
-        private ItemSO _previewItem;
         private OutfitSlot _activeTab = OutfitSlot.Top;
         private CanvasGroup _cg;
 
+        // Soft-preview per slot
+        private ItemSO _softTop;
+        private ItemSO _softBottom;
+
+        // Legacy (opsional; tidak dipakai untuk enable/disable equip)
+        private ItemSO _previewItem;
+
+        // ---------- Unity ----------
         void Awake()
         {
             _cg = GetComponent<CanvasGroup>() ?? gameObject.AddComponent<CanvasGroup>();
@@ -59,15 +81,14 @@ namespace MMDress.UI
 
             if (tabTopButton) tabTopButton.onClick.AddListener(() => ShowTab(OutfitSlot.Top));
             if (tabBottomButton) tabBottomButton.onClick.AddListener(() => ShowTab(OutfitSlot.Bottom));
-            if (equipButton) equipButton.onClick.AddListener(EquipPreview);
-            if (closeButton) closeButton.onClick.AddListener(Close);
+            if (equipButton) equipButton.onClick.AddListener(EquipAndClose);
 
             if (listView) listView.OnItemSelected = OnItemClicked;
 
             SetVisible(false);
         }
 
-        // Dipanggil dari CustomerController saat customer diklik
+        /// Dipanggil dari CustomerController saat customer diklik
         public void Open(Customer.CustomerController target)
         {
             _current = target;
@@ -76,14 +97,23 @@ namespace MMDress.UI
             session?.ResetSession();
             preview?.Clear();
 
+            // Prefill awal tanpa menyentuh CatalogSO.items:
+            // Prioritas: session.Equipped* -> default* (Inspector)
+            _softTop = session?.EquippedTop ?? defaultTop;
+            _softBottom = session?.EquippedBottom ?? defaultBottom;
+
             SetVisible(true);
+
+            // Buka tab Top sebagai default dan render awal
             ShowTab(OutfitSlot.Top);
+            RefreshPreviewCombined();
 
             ServiceLocator.Events.Publish(new FittingUIOpened());
             UpdateEquipButton();
         }
 
-        void SetVisible(bool on)
+        // ---------- UI State ----------
+        private void SetVisible(bool on)
         {
             if (_cg)
             {
@@ -91,28 +121,40 @@ namespace MMDress.UI
                 _cg.interactable = on;
                 _cg.blocksRaycasts = on;
             }
-            if (panelRoot) panelRoot.SetActive(true); // keep-alive
+            if (panelRoot) panelRoot.SetActive(true); // keep-alive layout
         }
 
-        void RefreshPreviewFromSession()
+        private void RefreshPreviewCombined()
         {
-            if (!preview || !session) return;
-            preview.ApplyEquipped(session.EquippedTop, session.EquippedBottom);
+            if (!preview) return;
+            var topToShow = _softTop ?? session?.EquippedTop;
+            var bottomToShow = _softBottom ?? session?.EquippedBottom;
+            preview.ApplyEquipped(topToShow, bottomToShow);
         }
 
-        void ShowTab(OutfitSlot slot)
+        private void ShowTab(OutfitSlot slot)
         {
             _activeTab = slot;
+
+            // Ubah label judul
+            if (slotTitleLabel)
+                slotTitleLabel.text = (slot == OutfitSlot.Top) ? "Kebaya" : "Jarik";
 
             if (listView)
             {
                 listView.SetCatalog(catalog);
                 listView.SetSlot(slot);
-                var equipped = (slot == OutfitSlot.Top) ? session?.EquippedTop : session?.EquippedBottom;
-                listView.Refresh(equipped);
+
+                // highlight item aktif (soft > equipped)
+                var selected = (slot == OutfitSlot.Top)
+                    ? (_softTop ?? session?.EquippedTop)
+                    : (_softBottom ?? session?.EquippedBottom);
+
+                // Jika ItemGridView punya Refresh(selected) gunakan ini; jika tidak, Anda bisa ubah ke Refresh(); dan (opsional) panggil listView.SetSelected(selected) bila tersedia.
+                listView.Refresh(selected);
             }
 
-            RefreshPreviewFromSession();
+            RefreshPreviewCombined();
 
             if (tabTopButton) tabTopButton.interactable = (slot != OutfitSlot.Top);
             if (tabBottomButton) tabBottomButton.interactable = (slot != OutfitSlot.Bottom);
@@ -120,9 +162,14 @@ namespace MMDress.UI
             UpdateEquipButton();
         }
 
-        void UpdateEquipButton() => equipButton.InteractableIf(_previewItem != null);
+        private void UpdateEquipButton()
+        {
+            bool hasSoft = (_softTop != null) || (_softBottom != null);
+            equipButton.InteractableIf(hasSoft);
+        }
 
-        void OnItemClicked(ItemSO item)
+        // ---------- Interaksi Grid ----------
+        private void OnItemClicked(ItemSO item)
         {
             if (item == null) return;
 
@@ -130,35 +177,48 @@ namespace MMDress.UI
             if (item.slot == OutfitSlot.Top && (session?.IsTopLocked ?? false)) return;
             if (item.slot == OutfitSlot.Bottom && (session?.IsBottomLocked ?? false)) return;
 
-            _previewItem = item;
+            _previewItem = item; // legacy
 
-            // (Optional) kalau mau DIM saat stok 0: ambil dari StockService di tempat lain
-            bool dim = false;
-            preview?.TryOn(item, dim);
+            if (item.slot == OutfitSlot.Top) _softTop = item;
+            if (item.slot == OutfitSlot.Bottom) _softBottom = item;
 
+            RefreshPreviewCombined();
             ServiceLocator.Events.Publish(new ItemPreviewed(item));
             UpdateEquipButton();
         }
 
-        void EquipPreview()
+        // ---------- Commit & Auto-Close ----------
+        private void EquipAndClose()
         {
-            if (_previewItem == null || session == null) return;
+            if (session == null) return;
 
-            bool ok = _previewItem.slot == OutfitSlot.Top
-                ? session.EquipTop(_previewItem)
-                : session.EquipBottom(_previewItem);
+            bool anyCommitted = false;
 
-            if (!ok) return;
+            if (_softTop != null && session.EquipTop(_softTop))
+            {
+                anyCommitted = true;
+                if (_current != null)
+                    ServiceLocator.Events.Publish(new OutfitEquippedCommitted(_current, OutfitSlot.Top, _softTop));
+            }
 
-            if (_current != null)
-                ServiceLocator.Events.Publish(new OutfitEquippedCommitted(_current, _previewItem.slot, _previewItem));
+            if (_softBottom != null && session.EquipBottom(_softBottom))
+            {
+                anyCommitted = true;
+                if (_current != null)
+                    ServiceLocator.Events.Publish(new OutfitEquippedCommitted(_current, OutfitSlot.Bottom, _softBottom));
+            }
 
+            _softTop = null;
+            _softBottom = null;
             _previewItem = null;
-            RefreshPreviewFromSession(); // render dari state agar tidak hilang
+
+            RefreshPreviewCombined();
             UpdateEquipButton();
+
+            if (anyCommitted) Close();
         }
 
-        /// Close hybrid: jika ada resolver → pakai resolver; else fallback lama.
+        /// Tetap tersedia untuk dipanggil resolver / eksternal (tanpa tombol Close di UI).
         public void Close()
         {
             if (resolver && _current && session)
@@ -167,21 +227,26 @@ namespace MMDress.UI
             }
 
             session?.FinalizeSession();
-            int equippedCount = (session?.EquippedTop ? 1 : 0) + (session?.EquippedBottom ? 1 : 0);
+            int equippedCount =
+                (session?.EquippedTop ? 1 : 0) +
+                (session?.EquippedBottom ? 1 : 0);
+
             _current?.FinishFitting(equippedCount);
             InternalClose();
         }
 
-        /// Dipanggil internal & oleh resolver agar tidak dobel FinishFitting.
         public void InternalClose()
         {
             ServiceLocator.Events.Publish(new FittingUIClosed());
             _current = null;
             _previewItem = null;
+            _softTop = null;
+            _softBottom = null;
             SetVisible(false);
         }
     }
 
+    // Util
     static class UIButtonExt
     {
         public static void InteractableIf(this Button b, bool cond)
