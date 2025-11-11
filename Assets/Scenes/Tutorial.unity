@@ -4436,7 +4436,7 @@ MonoBehaviour:
   - {fileID: 1491286643}
   - {fileID: 1886385693}
   - {fileID: 707188077}
-  gameplaySceneName: Gameplay
+  gameplaySceneName: SampleScene
   tapCooldown: 0.18
 --- !u!114 &588900288
 MonoBehaviour:
