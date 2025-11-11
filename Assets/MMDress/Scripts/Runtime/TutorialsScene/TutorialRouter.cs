@@ -11,7 +11,7 @@ public static class TutorialRouter
 
     // isi sesuai nama scene di Build Settings
     public static string TutorialSceneName = "Tutorial";
-    public static string GameplaySceneName = "Gameplay";
+    public static string GameplaySceneName = "SampleScene";
 
     /// <summary>
     /// Dipanggil oleh tombol "Play".
