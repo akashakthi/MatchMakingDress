@@ -25,7 +25,7 @@ namespace MMDress.Runtime.UI.PrepShop
 
         void Awake()
         {
-            if (button) button.onClick.AddListener(() =>
+            if (button) button.onClick.AddListener(() =>    
             {
                 if (!economy) return;
                 economy.Add(amount); // <- ini yang mem-publish MoneyChanged
