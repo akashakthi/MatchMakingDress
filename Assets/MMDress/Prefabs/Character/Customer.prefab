@@ -100,6 +100,8 @@ MonoBehaviour:
   moveSpeed: 2
   arriveThreshold: 0.05
   defaultWaitDurationSec: 15
+  requestedTop: {fileID: 0}
+  requestedBottom: {fileID: 0}
   reputation: {fileID: 0}
   waitTimerBridge: {fileID: 5609021067655370924}
 --- !u!114 &3536193638109412727
@@ -143,7 +145,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a7c3bf56cacc523469052ad0cdcf97a5, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  currentOrder: {fileID: 0}
+  currentOrder: {fileID: 11400000, guid: 1da80bffeeddedd419e3af16864a081c, type: 2}
   verbose: 1
 --- !u!114 &6422788867885728206
 MonoBehaviour:

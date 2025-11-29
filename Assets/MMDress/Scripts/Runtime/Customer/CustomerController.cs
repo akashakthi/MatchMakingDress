@@ -1,10 +1,13 @@
-﻿using System;
+﻿// Assets/MMDress/Scripts/Runtime/Customer/CustomerController.cs
+using System;
 using UnityEngine;
 using MMDress.Core;
 using MMDress.Gameplay;
 using MMDress.UI;
 using MMDress.Runtime.Reputation;
 using MMDress.Runtime.Integration;
+using MMDress.Data;
+using CheckoutEvt = MMDress.Gameplay.CustomerCheckout;
 
 namespace MMDress.Customer
 {
@@ -17,6 +20,13 @@ namespace MMDress.Customer
 
         [Header("Waiting")]
         [SerializeField] private float defaultWaitDurationSec = 15f;
+
+        [Header("Order (Requested Outfit)")]
+        [SerializeField] private ItemSO requestedTop;
+        [SerializeField] private ItemSO requestedBottom;
+
+        public ItemSO RequestedTop => requestedTop;
+        public ItemSO RequestedBottom => requestedBottom;
 
         [Header("Services & Bridges")]
         [SerializeField] private ReputationService reputation;                 // optional
@@ -124,7 +134,8 @@ namespace MMDress.Customer
                         OnTimedOut?.Invoke(this);
                         FreeSeat();
 
-                        ServiceLocator.Events?.Publish(new CustomerCheckout(this, 0));
+                        // timeout → 0 item, salah order
+                        ServiceLocator.Events?.Publish(new CheckoutEvt(this, 0, false));
                         ServiceLocator.Events?.Publish(new CustomerTimedOut(this));
 
                         BeginLeaving();
@@ -155,12 +166,12 @@ namespace MMDress.Customer
         }
 
         // === API dipanggil UI ===
-        // Versi baru: UI langsung kasih jumlah item yang benar-benar equip (0–2).
-        public void FinishFitting(int equippedCount)
+        // Versi baru: UI kasih jumlah item yang equip + flag benar/salah.
+        public void FinishFitting(int equippedCount, bool isCorrectOrder)
         {
             int items = Mathf.Clamp(equippedCount, 0, 2);
 
-            ServiceLocator.Events?.Publish(new CustomerCheckout(this, items));
+            ServiceLocator.Events?.Publish(new CheckoutEvt(this, items, isCorrectOrder));
 
             if (_state != State.Fitting) return;
 
@@ -170,8 +181,11 @@ namespace MMDress.Customer
             ServiceLocator.Events?.Publish(new CustomerServed(this, 0));
         }
 
-        // Versi lama (fallback): diasumsikan 0 item.
-        public void FinishFitting() => FinishFitting(0);
+        // Versi lama: dianggap salah order (isCorrectOrder = false).
+        public void FinishFitting(int equippedCount) => FinishFitting(equippedCount, false);
+
+        // Versi paling lama (tanpa parameter).
+        public void FinishFitting() => FinishFitting(0, false);
 
         private void BeginLeaving()
         {
