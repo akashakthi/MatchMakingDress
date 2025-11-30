@@ -1,4 +1,5 @@
-﻿using UnityEngine;
+﻿// Assets/MMDress/Scripts/Runtime/Timer/TimeOfDayService.cs
+using UnityEngine;
 using System;
 
 namespace MMDress.Runtime.Timer
@@ -9,28 +10,37 @@ namespace MMDress.Runtime.Timer
     public sealed class TimeOfDayService : MonoBehaviour
     {
         [Header("Durasi real per fase (detik)")]
-        public float night00to06Seconds = 10f;   // fast-forward 00–06
-        public float prepSeconds = 120f;  // 06–08 (2 menit)
+        public float night00to06Seconds = 10f;   // 00–06
+        public float prepSeconds = 120f;  // 06–08
         public float openSeconds = 240f;  // 08–16
-        public float closed16to24Seconds = 10f;   // fast-forward 16–24
+        public float closed16to24Seconds = 10f;  // 16–24
 
         public DayPhase CurrentPhase { get; private set; } = DayPhase.Night;
         public event Action<DayPhase> DayPhaseChanged;
 
         float _timer;
         int _idx; // 0 Night, 1 Prep, 2 Open, 3 Closed
+        bool _paused;
+
+        public bool IsPaused => _paused;
 
         void OnEnable()
         {
-            _idx = 0; _timer = 0f;
+            _idx = 0;
+            _timer = 0f;
+            _paused = false;
+
             CurrentPhase = (DayPhase)_idx;
             DayPhaseChanged?.Invoke(CurrentPhase); // seed awal
         }
 
         void Update()
         {
+            if (_paused) return;  // <<== stop jam kalau dipause
+
             float dur = GetDur(_idx);
             if (dur <= 0f) dur = 0.0001f;
+
             _timer += Time.deltaTime;
             if (_timer >= dur)
             {
@@ -58,22 +68,23 @@ namespace MMDress.Runtime.Timer
             int h = minutes / 60, m = minutes % 60;
             return $"{h:00}:{m:00}";
         }
+
         float GetVirtualMinutes()
         {
             float dur = GetDur(_idx);
             float t = dur <= 0f ? 0f : Mathf.Clamp01(_timer / dur);
             return CurrentPhase switch
             {
-                DayPhase.Night => 0f + t * 360f, // 00:00–06:00
-                DayPhase.Prep => 360f + t * 120f, // 06:00–08:00
-                DayPhase.Open => 480f + t * 480f, // 08:00–16:00
-                _ => 960f + t * 480f, // 16:00–24:00
+                DayPhase.Night => 0f + t * 360f, // 00–06
+                DayPhase.Prep => 360f + t * 120f, // 06–08
+                DayPhase.Open => 480f + t * 480f, // 08–16
+                _ => 960f + t * 480f, // 16–24
             };
         }
-        // === Tambahan API publik agar bisa lompat fase secara eksplisit ===
+
+        // === API publik ===
         public void JumpToPhase(DayPhase phase)
         {
-            // map enum ke index internal
             _idx = phase switch
             {
                 DayPhase.Night => 0,
@@ -88,10 +99,11 @@ namespace MMDress.Runtime.Timer
             DayPhaseChanged?.Invoke(CurrentPhase);
         }
 
-        /// <summary>Shortcut: lompat langsung ke jam 08:00 (fase Open).</summary>
-        public void JumpToOpen()
+        public void JumpToOpen() => JumpToPhase(DayPhase.Open);
+
+        public void SetPaused(bool paused)
         {
-            JumpToPhase(DayPhase.Open);
+            _paused = paused;
         }
     }
 }

@@ -32,6 +32,10 @@ namespace MMDress.Customer
         [SerializeField] private ReputationService reputation;                 // optional
         [SerializeField] private WaitTimerReputationBridge waitTimerBridge;    // optional
 
+        [Header("Audio")]
+        [SerializeField] private AudioClip clickSfx;            // SFX saat customer diklik
+        [SerializeField] private AudioSource audioSource;       // optional, boleh dikosongkan
+
         private enum State { Idle, EnteringQueue, Queued, EnteringSeat, Waiting, Fitting, Leaving }
         private State _state = State.Idle;
         private Collider2D _col;
@@ -58,6 +62,13 @@ namespace MMDress.Customer
         private void Awake()
         {
             _col = GetComponent<Collider2D>();
+            if (!audioSource && clickSfx)
+            {
+                // auto-add AudioSource kalau belum ada tapi ada SFX
+                audioSource = gameObject.GetComponent<AudioSource>();
+                if (!audioSource)
+                    audioSource = gameObject.AddComponent<AudioSource>();
+            }
         }
 
         // ---------- INIT dari Spawner ----------
@@ -155,10 +166,28 @@ namespace MMDress.Customer
             return (transform.position - target).sqrMagnitude <= (arriveThreshold * arriveThreshold);
         }
 
+        // ========== Audio Helper ==========
+        private void PlayClickSfx()
+        {
+            if (!clickSfx) return;
+
+            if (!audioSource)
+            {
+                audioSource = gameObject.GetComponent<AudioSource>();
+                if (!audioSource)
+                    audioSource = gameObject.AddComponent<AudioSource>();
+            }
+
+            audioSource.PlayOneShot(clickSfx);
+        }
+
         // ========== Input ==========
         public void OnClick()
         {
             if (_state != State.Waiting) return;
+
+            // SFX saat player memilih customer
+            PlayClickSfx();
 
             _state = State.Fitting;
             OnFittingStarted?.Invoke(this);
