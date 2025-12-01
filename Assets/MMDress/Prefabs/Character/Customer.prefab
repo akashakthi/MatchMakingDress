@@ -100,12 +100,12 @@ MonoBehaviour:
   moveSpeed: 2
   arriveThreshold: 0.05
   defaultWaitDurationSec: 15
+  despawnDuration: 1
+  despawnEase: 26
   requestedTop: {fileID: 0}
   requestedBottom: {fileID: 0}
   reputation: {fileID: 0}
   waitTimerBridge: {fileID: 5609021067655370924}
-  clickSfx: {fileID: 8300000, guid: 7b7c2ead77754724aae4fdfe7aa5932c, type: 3}
-  audioSource: {fileID: 0}
 --- !u!114 &3536193638109412727
 MonoBehaviour:
   m_ObjectHideFlags: 0

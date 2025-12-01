@@ -44,19 +44,22 @@ namespace MMDress.Customer
         {
             _ctrl.OnWaitingStarted += OnWaitingStarted;
             _ctrl.OnWaitProgress += OnWaitProgress;
-            _ctrl.OnFittingStarted += _ => Hide();
-            _ctrl.OnLeavingStarted += _ => Hide();
-            _ctrl.OnTimedOut += _ => Hide();
+            _ctrl.OnFittingStarted += OnFittingStarted;
+            _ctrl.OnLeavingStarted += OnLeavingStarted;
+            _ctrl.OnTimedOut += OnTimedOutInternal;
         }
+
         void OnDisable()
         {
             _ctrl.OnWaitingStarted -= OnWaitingStarted;
             _ctrl.OnWaitProgress -= OnWaitProgress;
-            _ctrl.OnFittingStarted -= _ => Hide();
-            _ctrl.OnLeavingStarted -= _ => Hide();
-            _ctrl.OnTimedOut -= _ => Hide();
+            _ctrl.OnFittingStarted -= OnFittingStarted;
+            _ctrl.OnLeavingStarted -= OnLeavingStarted;
+            _ctrl.OnTimedOut -= OnTimedOutInternal;
         }
-
+        void OnFittingStarted(CustomerController c) => Hide();
+        void OnLeavingStarted(CustomerController c) => Hide();
+        void OnTimedOutInternal(CustomerController c) => Hide();
         void OnWaitingStarted(CustomerController c)
         {
             if (panelRoot) panelRoot.SetActive(true);

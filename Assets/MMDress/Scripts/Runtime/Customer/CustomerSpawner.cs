@@ -1,30 +1,38 @@
-﻿// Assets/MMDress/Scripts/Runtime/Gameplay/Customer/CustomerSpawner.cs
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using UnityEngine;
-using MMDress.Core;
 using MMDress.Services;
 using RepService = MMDress.Runtime.Reputation.ReputationService;
+using MMDress.Core;
 
 namespace MMDress.Customer
 {
     [DisallowMultipleComponent]
-    [AddComponentMenu("MMDress/Gameplay/Customer Spawner")]
-    public class CustomerSpawner : MonoBehaviour
+    [AddComponentMenu("MMDress/Gameplay/Customer Spawner (Path Based)")]
+    public sealed class CustomerSpawner : MonoBehaviour
     {
         [Header("References")]
         [SerializeField] private Transform spawnPoint;
-        [SerializeField] private Transform exitPoint;
-        [SerializeField] private Transform seatsRoot;
-        [SerializeField] private Transform queueRoot;
 
         [Header("Customer Prefabs (Random Pick)")]
-        [Tooltip("List prefab pelanggan. Spawner memilih 1 random setiap kali spawn.")]
+        [Tooltip("Drag Customer1..Customer8 ke sini.")]
         [SerializeField] private List<GameObject> customerPrefabs = new();
+
+        [System.Serializable]
+        public sealed class WalkPath
+        {
+            public string name;
+            [Tooltip("Waypoint dari pintu ke posisi akhir (kursi / spot tunggu). Urut!")]
+            public Transform[] waypoints;
+        }
+
+        [Header("Walk Paths (multi waypoint)")]
+        [Tooltip("Setiap element = 1 jalur. Satu customer hanya memakai 1 jalur sekali jalan.")]
+        [SerializeField] private WalkPath[] paths;
 
         [Header("Rules")]
         [SerializeField, Min(0.1f)] private float spawnInterval = 3f;
-        [SerializeField, Min(1)] private int maxInScene = 5;
-        [SerializeField] private Vector2 waitSecondsRange = new(10, 20);
+        [SerializeField, Min(1)] private int maxInScene = 3;
+        [SerializeField] private Vector2 waitSecondsRange = new Vector2(10, 20);
 
         [Header("Pooling")]
         [SerializeField] private bool usePooling = true;
@@ -36,40 +44,48 @@ namespace MMDress.Customer
         [SerializeField] private bool autoFindServices = true;
         [SerializeField] private bool verboseOrderLog = false;
 
-        // internal states
-        readonly List<Transform> _seats = new();
-        readonly List<Transform> _queue = new();
-        bool[] _seatOccupied;
-        CustomerController[] _queueOcc;
-        readonly List<CustomerController> _active = new();
+        // ---- runtime state ----
+        private float _spawnAccu;
+        private SimplePool<CustomerController> _pool;
+        private readonly List<CustomerController> _active = new();
+        // mapping customer -> index path yang dia pakai, supaya path tidak dipakai dobel
+        private readonly Dictionary<CustomerController, int> _customerPath
+            = new Dictionary<CustomerController, int>();
 
-        SimplePool<CustomerController> _pool;
-        float _spawnAccu;
+        private void Reset()
+        {
+            autoFindServices = true;
+        }
 
-        void OnValidate() => CollectPoints();
-
-        void Awake()
+        private void Awake()
         {
             if (autoFindServices)
             {
+#if UNITY_2023_1_OR_NEWER
+                orderService ??= UnityEngine.Object.FindAnyObjectByType<OrderService>(FindObjectsInactive.Include);
+                reputation ??= UnityEngine.Object.FindAnyObjectByType<RepService>(FindObjectsInactive.Include);
+#else
                 orderService ??= FindObjectOfType<OrderService>(true);
-                reputation ??= FindObjectOfType<RepService>(true);
+                reputation   ??= FindObjectOfType<RepService>(true);
+#endif
             }
-
-            CollectPoints();
 
             if (usePooling)
             {
                 _pool = new SimplePool<CustomerController>(
                     factory: CreateNew,
-                    onGet: (c) =>
+                    onGet: c =>
                     {
+                        if (!c) return;
                         c.gameObject.SetActive(true);
                         if (spawnPoint) c.transform.position = spawnPoint.position;
                     },
-                    onRelease: (c) => c.gameObject.SetActive(false)
-                );
+                    onRelease: c =>
+                    {
+                        if (c) c.gameObject.SetActive(false);
+                    });
 
+                // prewarm
                 for (int i = 0; i < prewarm; i++)
                 {
                     var tmp = _pool.Get();
@@ -78,9 +94,7 @@ namespace MMDress.Customer
             }
         }
 
-        void Start() => _spawnAccu = 0f;
-
-        void Update()
+        private void Update()
         {
             if (!CanSpawn()) return;
 
@@ -89,63 +103,71 @@ namespace MMDress.Customer
             while (_spawnAccu >= spawnInterval)
             {
                 _spawnAccu -= spawnInterval;
-                if (_active.Count >= HardCap()) break;
+                if (_active.Count >= maxInScene) break;
 
-                int si = FindFreeSeat();
-                if (si >= 0)
-                {
-                    SpawnToSeat(si);
-                    continue;
-                }
+                int pathIndex = FindRandomFreePath();
+                if (pathIndex < 0) break; // semua path dipakai
 
-                int qi = FindFreeQueue();
-                if (qi >= 0)
-                {
-                    SpawnToQueue(qi);
-                }
-
-                if (si < 0 && qi < 0)
-                    break;
+                SpawnToPath(pathIndex);
             }
         }
 
-        // ============================================================
-        // Prefab Picker
-        // ============================================================
+        private bool CanSpawn()
+        {
+            if (!spawnPoint) return false;
+            if (customerPrefabs == null || customerPrefabs.Count == 0) return false;
+            if (paths == null || paths.Length == 0) return false;
+            return true;
+        }
 
-        GameObject PickRandomPrefab()
+        /// <summary>Cari satu index path yang belum dipakai customer manapun.</summary>
+        private int FindRandomFreePath()
+        {
+            if (paths == null || paths.Length == 0) return -1;
+
+            List<int> free = null;
+
+            for (int i = 0; i < paths.Length; i++)
+            {
+                bool occupied = false;
+                foreach (var kv in _customerPath)
+                {
+                    if (kv.Value == i) { occupied = true; break; }
+                }
+
+                if (!occupied)
+                {
+                    free ??= new List<int>();
+                    free.Add(i);
+                }
+            }
+
+            if (free == null || free.Count == 0)
+                return -1;
+
+            int pick = free[Random.Range(0, free.Count)];
+            return pick;
+        }
+
+        private CustomerController CreateNew()
         {
             if (customerPrefabs == null || customerPrefabs.Count == 0)
-                return null;
-
-            return customerPrefabs[Random.Range(0, customerPrefabs.Count)];
-        }
-
-        bool CanSpawn()
-        {
-            if (!spawnPoint || !exitPoint) return false;
-            if (customerPrefabs == null || customerPrefabs.Count == 0) return false;
-            return _seats.Count > 0;
-        }
-
-        // ============================================================
-        // Factory + Pool
-        // ============================================================
-
-        CustomerController CreateNew()
-        {
-            var pf = PickRandomPrefab();
-            if (!pf)
             {
-                Debug.LogError("[CustomerSpawner] CustomerPrefabs kosong atau null.", this);
+                Debug.LogError("[CustomerSpawner] customerPrefabs kosong.", this);
                 return null;
             }
 
-            var go = Instantiate(pf);
-            return go.GetComponent<CustomerController>();
+            var pf = customerPrefabs[Random.Range(0, customerPrefabs.Count)];
+            var go = Instantiate(pf, spawnPoint ? spawnPoint.position : Vector3.zero, Quaternion.identity);
+            var ctrl = go.GetComponent<CustomerController>();
+
+            if (!ctrl)
+                Debug.LogError("[CustomerSpawner] Prefab tidak punya CustomerController.", pf);
+
+            return ctrl;
         }
 
-        CustomerController Get()
+        private CustomerController Get()
         {
             if (!usePooling)
                 return CreateNew();
@@ -155,166 +177,70 @@ namespace MMDress.Customer
             return c;
         }
 
-        void Release(CustomerController c)
+        private void Release(CustomerController c)
         {
             _active.Remove(c);
+            _customerPath.Remove(c);
 
-            if (usePooling) _pool.Release(c);
-            else if (c) Destroy(c.gameObject);
+            if (usePooling && c)
+                _pool.Release(c);
+            else if (c)
+                Destroy(c.gameObject);
         }
 
-        // ============================================================
-        // Spawn Logic
-        // ============================================================
-
-        int HardCap()
-        {
-            int logicalMax = _seats.Count + _queue.Count;
-            return Mathf.Min(maxInScene, logicalMax);
-        }
-
-        int FindFreeSeat()
-        {
-            for (int i = 0; i < _seats.Count; i++)
-                if (!_seatOccupied[i]) return i;
-            return -1;
-        }
-
-        int FindFreeQueue()
-        {
-            if (_queueOcc == null || _queueOcc.Length == 0) return -1;
-            for (int i = 0; i < _queueOcc.Length; i++)
-                if (_queueOcc[i] == null) return i;
-            return -1;
-        }
-
-        void SpawnToSeat(int seatIndex)
+        private void SpawnToPath(int pathIndex)
         {
             var c = Get();
             if (!c) return;
 
             _active.Add(c);
-            _seatOccupied[seatIndex] = true;
+            _customerPath[c] = pathIndex;
 
-            AssignOrder(c);
+            // --- build path dari Transform[] ke Vector3[] ---
+            Vector3[] pathPositions = null;
+            var wp = paths[pathIndex];
+
+            if (wp != null && wp.waypoints != null && wp.waypoints.Length > 0)
+            {
+                pathPositions = new Vector3[wp.waypoints.Length];
+                for (int i = 0; i < wp.waypoints.Length; i++)
+                    pathPositions[i] = wp.waypoints[i].position;
+            }
+
+            // titik akhir = waypoint terakhir (spot tunggu / “seat” imajiner)
+            Vector3 seatPos = (pathPositions != null && pathPositions.Length > 0)
+                ? pathPositions[pathPositions.Length - 1]
+                : c.transform.position;
 
             float waitSec = Random.Range(waitSecondsRange.x, waitSecondsRange.y);
 
+            // panggil InitSeat versi baru (tanpa exitPos)
             c.InitSeat(
-                _seats[seatIndex].position,
-                exitPoint.position,
-                seatIndex,
-                FreeSeat,
+                seatPos,
+                -1,                 // seatIndex tidak dipakai (dummy)
+                _ => { },           // onSeatFreed dummy (tidak ada kursi fisik)
                 waitSec,
-                OnDespawn
+                OnCustomerDespawn,
+                pathPositions
             );
-        }
 
-        void SpawnToQueue(int queueIndex)
-        {
-            var c = Get();
-            if (!c) return;
-
-            _active.Add(c);
-            _queueOcc[queueIndex] = c;
-
-            AssignOrder(c);
-
-            float waitSec = Random.Range(waitSecondsRange.x, waitSecondsRange.y);
-
-            c.InitQueue(
-                _queue[queueIndex].position,
-                exitPoint.position,
-                queueIndex,
-                FreeQueue,
-                waitSec,
-                OnDespawn
-            );
-        }
-
-        // ============================================================
-        // Order Assignment
-        // ============================================================
-
-        void AssignOrder(CustomerController c)
-        {
-            if (!c) return;
-
-            var holder = c.GetComponent<CustomerOrder>();
-            if (!holder) return;
-
-            if (!orderService)
+            // ==== Assign order via CustomerOrder ====
+            if (orderService)
             {
-                if (verboseOrderLog)
-                    Debug.LogWarning("[CustomerSpawner] OrderService null.", this);
-                holder.SetOrder(null);
-                return;
-            }
+                var holder = c.GetComponent<CustomerOrder>();
+                if (holder)
+                {
+                    holder.AssignRandom(orderService, -1, reputation);
 
-            int stage = reputation ? Mathf.Clamp(reputation.Stage, 1, 3) : 1;
-            var order = orderService.GetRandomOrder(stage);
-
-            holder.SetOrder(order);
-
-            if (verboseOrderLog)
-                Debug.Log($"[Spawner] Assigned order: {(order ? order.name : "null")} (stage {stage})");
-        }
-
-        // ============================================================
-        // Promotion & Queue Management
-        // ============================================================
-
-        void OnDespawn(CustomerController c) => Release(c);
-
-        void FreeSeat(int seatIndex)
-        {
-            if (_seatOccupied == null) return;
-            if (seatIndex < 0 || seatIndex >= _seatOccupied.Length) return;
-
-            _seatOccupied[seatIndex] = false;
-
-            if (_queueOcc == null) return;
-
-            for (int qi = 0; qi < _queueOcc.Length; qi++)
-            {
-                var waiting = _queueOcc[qi];
-                if (waiting == null) continue;
-
-                _queueOcc[qi] = null;
-                _seatOccupied[seatIndex] = true;
-                waiting.PromoteToSeat(_seats[seatIndex].position, seatIndex, FreeSeat);
-
-                break;
+                    if (verboseOrderLog)
+                        Debug.Log($"[Spawner] Assigned order: {holder.GetDebugString()} ke {c.name}", this);
+                }
             }
         }
 
-        void FreeQueue(int queueIndex)
+        private void OnCustomerDespawn(CustomerController c)
         {
-            if (_queueOcc == null) return;
-            if (queueIndex < 0 || queueIndex >= _queueOcc.Length) return;
-            _queueOcc[queueIndex] = null;
-        }
-
-        void CollectPoints()
-        {
-            _seats.Clear();
-            _queue.Clear();
-
-            if (seatsRoot)
-            {
-                for (int i = 0; i < seatsRoot.childCount; i++)
-                    _seats.Add(seatsRoot.GetChild(i));
-                _seatOccupied = new bool[_seats.Count];
-            }
-            else _seatOccupied = new bool[0];
-
-            if (queueRoot)
-            {
-                for (int i = 0; i < queueRoot.childCount; i++)
-                    _queue.Add(queueRoot.GetChild(i));
-                _queueOcc = new CustomerController[_queue.Count];
-            }
-            else _queueOcc = new CustomerController[0];
+            Release(c);
         }
     }
 }

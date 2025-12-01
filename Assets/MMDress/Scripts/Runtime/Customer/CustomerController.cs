@@ -1,6 +1,7 @@
 ﻿// Assets/MMDress/Scripts/Runtime/Customer/CustomerController.cs
 using System;
 using UnityEngine;
+using DG.Tweening;
 using MMDress.Core;
 using MMDress.Gameplay;
 using MMDress.UI;
@@ -21,6 +22,15 @@ namespace MMDress.Customer
         [Header("Waiting")]
         [SerializeField] private float defaultWaitDurationSec = 15f;
 
+        [Header("Despawn FX")]
+        [SerializeField] private float despawnDuration = 0.25f;
+        [SerializeField] private Ease despawnEase = Ease.InBack;
+
+        [Header("Walk FX")]
+        [Tooltip("Besaran kedut saat berjalan (1 = tidak kedut).")]
+        [SerializeField] private float walkSquashY = 0.9f;
+        [SerializeField] private float walkSquashDuration = 0.15f;
+
         [Header("Order (Requested Outfit)")]
         [SerializeField] private ItemSO requestedTop;
         [SerializeField] private ItemSO requestedBottom;
@@ -32,25 +42,43 @@ namespace MMDress.Customer
         [SerializeField] private ReputationService reputation;                 // optional
         [SerializeField] private WaitTimerReputationBridge waitTimerBridge;    // optional
 
-        [Header("Audio")]
-        [SerializeField] private AudioClip clickSfx;            // SFX saat customer diklik
-        [SerializeField] private AudioSource audioSource;       // optional, boleh dikosongkan
+        private enum State
+        {
+            Idle,
+            PathToQueue,
+            EnteringQueue,
+            Queued,
+            PathToSeat,
+            EnteringSeat,
+            Waiting,
+            Fitting,
+            Leaving
+        }
 
-        private enum State { Idle, EnteringQueue, Queued, EnteringSeat, Waiting, Fitting, Leaving }
         private State _state = State.Idle;
         private Collider2D _col;
 
-        // Seat / Queue / Exit
+        // Seat / Queue
         private Vector3 _seatPos; private int _seatIndex = -1; private Action<int> _onSeatFreed;
         private Vector3 _queuePos; private int _queueIndex = -1; private Action<int> _onQueueFreed;
-        private Vector3 _exitPos;
+
+        // Path (dari pintu ke area antre/duduk)
+        private Vector3[] _path;
+        private int _pathIndex;
 
         // Timer logic
         private WaitTimer _timer;
-        private float _pendingWaitSec; // waktu dasar saat nanti naik seat
+        private float _pendingWaitSec;   // waktu dasar saat nanti naik seat (dari queue)
+        private bool _timeoutHandled;    // supaya timeout cuma sekali
 
         // Despawn callback (pooling)
         private Action<CustomerController> _onDespawn;
+
+        // FX (scale + tween)
+        private Vector3 _originalScale;
+        private Tween _despawnTween;
+        private Tween _walkTween;
+        private bool _wasWalking;
 
         // Events (untuk HUD/UI lain)
         public event Action<CustomerController> OnWaitingStarted;
@@ -59,49 +87,80 @@ namespace MMDress.Customer
         public event Action<CustomerController> OnFittingStarted;
         public event Action<CustomerController> OnLeavingStarted;
 
+        // helper untuk efek kedut (kalau mau dipakai UI)
+        public bool IsWalking =>
+            _state == State.PathToQueue ||
+            _state == State.EnteringQueue ||
+            _state == State.PathToSeat ||
+            _state == State.EnteringSeat;
+
         private void Awake()
         {
             _col = GetComponent<Collider2D>();
-            if (!audioSource && clickSfx)
-            {
-                // auto-add AudioSource kalau belum ada tapi ada SFX
-                audioSource = gameObject.GetComponent<AudioSource>();
-                if (!audioSource)
-                    audioSource = gameObject.AddComponent<AudioSource>();
-            }
+            _originalScale = transform.localScale;
+        }
+
+        private void OnDisable()
+        {
+            _despawnTween?.Kill();
+            _walkTween?.Kill();
+            _despawnTween = null;
+            _walkTween = null;
+            transform.localScale = _originalScale;
         }
 
         // ---------- INIT dari Spawner ----------
+
         public void InitSeat(
-            Vector3 seatPos, Vector3 exitPos, int seatIndex, Action<int> onSeatFreed,
-            float waitSec, Action<CustomerController> onDespawn)
+            Vector3 seatPos,
+            int seatIndex,
+            Action<int> onSeatFreed,
+            float waitSec,
+            Action<CustomerController> onDespawn,
+            Vector3[] path = null)
         {
             _seatPos = seatPos;
-            _exitPos = exitPos;
             _seatIndex = seatIndex;
             _onSeatFreed = onSeatFreed;
             _onDespawn = onDespawn;
 
+            _timeoutHandled = false;
             _timer = new WaitTimer(waitSec > 0 ? waitSec : defaultWaitDurationSec);
             if (waitTimerBridge) waitTimerBridge.Bind(_timer);
 
-            _state = State.EnteringSeat;
+            _path = path;
+            _pathIndex = 0;
+
+            _state = (_path != null && _path.Length > 0) ? State.PathToSeat : State.EnteringSeat;
+
             if (_col) _col.enabled = true;
+            transform.localScale = _originalScale;
         }
 
         public void InitQueue(
-            Vector3 queuePos, Vector3 exitPos, int queueIndex, Action<int> onQueueFreed,
-            float futureWaitSec, Action<CustomerController> onDespawn)
+            Vector3 queuePos,
+            int queueIndex,
+            Action<int> onQueueFreed,
+            float futureWaitSec,
+            Action<CustomerController> onDespawn,
+            Vector3[] path = null)
         {
             _queuePos = queuePos;
-            _exitPos = exitPos;
             _queueIndex = queueIndex;
             _onQueueFreed = onQueueFreed;
             _pendingWaitSec = futureWaitSec > 0 ? futureWaitSec : defaultWaitDurationSec;
             _onDespawn = onDespawn;
 
-            _state = State.EnteringQueue;
+            _timeoutHandled = false;
+            _timer = null; // timer baru akan dibuat saat duduk
+
+            _path = path;
+            _pathIndex = 0;
+
+            _state = (_path != null && _path.Length > 0) ? State.PathToQueue : State.EnteringQueue;
+
             if (_col) _col.enabled = true;
+            transform.localScale = _originalScale;
         }
 
         // Dipanggil spawner saat ada kursi kosong
@@ -113,8 +172,12 @@ namespace MMDress.Customer
             _seatIndex = seatIndex;
             _onSeatFreed = onSeatFreed;
 
+            _timeoutHandled = false;
             _timer = new WaitTimer(_pendingWaitSec > 0 ? _pendingWaitSec : defaultWaitDurationSec);
             if (waitTimerBridge) waitTimerBridge.Bind(_timer);
+
+            _path = null;
+            _pathIndex = 0;
 
             _state = State.EnteringSeat;
         }
@@ -123,6 +186,14 @@ namespace MMDress.Customer
         {
             switch (_state)
             {
+                case State.PathToQueue:
+                    MoveAlongPath(State.EnteringQueue);
+                    break;
+
+                case State.PathToSeat:
+                    MoveAlongPath(State.EnteringSeat);
+                    break;
+
                 case State.EnteringQueue:
                     if (MoveTo(_queuePos)) _state = State.Queued;
                     break;
@@ -137,57 +208,136 @@ namespace MMDress.Customer
                     break;
 
                 case State.Waiting:
-                    _timer?.Tick(Time.deltaTime);
-                    OnWaitProgress?.Invoke(this, _timer != null ? _timer.Fraction : 0f);
+                    TickTimerAndMaybeTimeout();
+                    break;
 
-                    if (_timer != null && _timer.IsDone)
-                    {
-                        OnTimedOut?.Invoke(this);
-                        FreeSeat();
-
-                        // timeout → 0 item, salah order
-                        ServiceLocator.Events?.Publish(new CheckoutEvt(this, 0, false));
-                        ServiceLocator.Events?.Publish(new CustomerTimedOut(this));
-
-                        BeginLeaving();
-                    }
+                case State.Fitting:
+                    // timer tetap berjalan saat fitting → kalau habis, dianggap timeout
+                    TickTimerAndMaybeTimeout();
                     break;
 
                 case State.Leaving:
-                    if (MoveTo(_exitPos))
-                        _onDespawn?.Invoke(this);
+                    // Tidak perlu MoveTo exit; tinggal tunggu tween selesai
                     break;
+            }
+
+            HandleWalkFx();
+        }
+
+        // ---------- TIMER + TIMEOUT ----------
+
+        private void TickTimerAndMaybeTimeout()
+        {
+            if (_timer == null || _timeoutHandled)
+                return;
+
+            _timer.Tick(Time.deltaTime);
+            OnWaitProgress?.Invoke(this, _timer.Fraction);
+
+            if (_timer.IsDone)
+            {
+                HandleTimeout();
+            }
+        }
+
+        private void HandleTimeout()
+        {
+            if (_timeoutHandled) return;
+            _timeoutHandled = true;
+
+            // beritahu listener instance (UI, dsb.)
+            OnTimedOut?.Invoke(this);
+
+            // checkout gagal (0 item, salah)
+            FreeSeat();
+            ServiceLocator.Events?.Publish(new CheckoutEvt(this, 0, false));
+            ServiceLocator.Events?.Publish(new CustomerTimedOut(this));
+
+            // mulai keluar (fade & despawn)
+            BeginLeaving();
+        }
+
+        // ---------- WALK FX (flip + kedut) ----------
+
+        private void HandleWalkFx()
+        {
+            bool walkingNow = IsWalking;
+            if (walkingNow == _wasWalking) return;
+            _wasWalking = walkingNow;
+
+            if (walkingNow)
+                StartWalkTween();
+            else
+                StopWalkTween();
+        }
+
+        private void StartWalkTween()
+        {
+            _walkTween?.Kill();
+            transform.localScale = _originalScale;
+
+            float targetY = _originalScale.y * walkSquashY;
+            _walkTween = transform
+                .DOScaleY(targetY, walkSquashDuration)
+                .SetLoops(-1, LoopType.Yoyo)
+                .SetEase(Ease.InOutSine);
+        }
+
+        private void StopWalkTween()
+        {
+            if (_walkTween != null)
+            {
+                _walkTween.Kill();
+                _walkTween = null;
+            }
+            transform.localScale = _originalScale;
+        }
+
+        private void MoveAlongPath(State nextState)
+        {
+            if (_path == null || _path.Length == 0)
+            {
+                _state = nextState;
+                return;
+            }
+
+            Vector3 target = _path[_pathIndex];
+            if (MoveTo(target))
+            {
+                _pathIndex++;
+                if (_pathIndex >= _path.Length)
+                {
+                    _path = null;
+                    _state = nextState;
+                }
             }
         }
 
         private bool MoveTo(Vector3 target)
         {
-            transform.position = Vector3.MoveTowards(transform.position, target, moveSpeed * Time.deltaTime);
-            return (transform.position - target).sqrMagnitude <= (arriveThreshold * arriveThreshold);
-        }
+            Vector3 before = transform.position;
 
-        // ========== Audio Helper ==========
-        private void PlayClickSfx()
-        {
-            if (!clickSfx) return;
+            Vector3 newPos = Vector3.MoveTowards(before, target, moveSpeed * Time.deltaTime);
+            transform.position = newPos;
 
-            if (!audioSource)
+            // Flip kanan/kiri berdasarkan arah gerak X
+            Vector3 delta = newPos - before;
+            if (Mathf.Abs(delta.x) > 0.0001f)
             {
-                audioSource = gameObject.GetComponent<AudioSource>();
-                if (!audioSource)
-                    audioSource = gameObject.AddComponent<AudioSource>();
+                float sign = Mathf.Sign(delta.x); // kanan = +1, kiri = -1
+                var s = transform.localScale;
+                s.x = Mathf.Abs(s.x) * (sign > 0 ? 1f : -1f);
+                transform.localScale = s;
             }
 
-            audioSource.PlayOneShot(clickSfx);
+            return (newPos - target).sqrMagnitude <= (arriveThreshold * arriveThreshold);
         }
 
         // ========== Input ==========
+
         public void OnClick()
         {
             if (_state != State.Waiting) return;
-
-            // SFX saat player memilih customer
-            PlayClickSfx();
 
             _state = State.Fitting;
             OnFittingStarted?.Invoke(this);
@@ -195,7 +345,6 @@ namespace MMDress.Customer
         }
 
         // === API dipanggil UI ===
-        // Versi baru: UI kasih jumlah item yang equip + flag benar/salah.
         public void FinishFitting(int equippedCount, bool isCorrectOrder)
         {
             int items = Mathf.Clamp(equippedCount, 0, 2);
@@ -210,17 +359,30 @@ namespace MMDress.Customer
             ServiceLocator.Events?.Publish(new CustomerServed(this, 0));
         }
 
-        // Versi lama: dianggap salah order (isCorrectOrder = false).
         public void FinishFitting(int equippedCount) => FinishFitting(equippedCount, false);
-
-        // Versi paling lama (tanpa parameter).
         public void FinishFitting() => FinishFitting(0, false);
 
         private void BeginLeaving()
         {
+            if (_state == State.Leaving) return;
+
             _state = State.Leaving;
             if (_col) _col.enabled = false;
             OnLeavingStarted?.Invoke(this);
+
+            StopWalkTween();
+
+            _despawnTween?.Kill();
+            transform.localScale = _originalScale;
+
+            _despawnTween = transform
+                .DOScale(Vector3.zero, despawnDuration)
+                .SetEase(despawnEase)
+                .OnComplete(() =>
+                {
+                    transform.localScale = _originalScale;
+                    _onDespawn?.Invoke(this);
+                });
         }
 
         private void FreeSeat()
