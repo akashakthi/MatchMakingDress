@@ -13,11 +13,19 @@ MonoBehaviour:
   m_Name: OrderLibrary
   m_EditorClassIdentifier: 
   entries:
-  - order: {fileID: 11400000, guid: 1da80bffeeddedd419e3af16864a081c, type: 2}
-    weight: 1
+  - order: {fileID: 11400000, guid: a865dc3b6581be241bc8d32099371ba1, type: 2}
+    weight: 3
     minStage: 0
     maxStage: 0
-  - order: {fileID: 11400000, guid: 568d84beac8116548abdb578cc18af27, type: 2}
-    weight: 1
+  - order: {fileID: 11400000, guid: 5d7c8de0b134e7d4eac5bf472fdd4d95, type: 2}
+    weight: 4
+    minStage: 0
+    maxStage: 0
+  - order: {fileID: 11400000, guid: 004a251be1885e744b70f0a715c08e8f, type: 2}
+    weight: 5
+    minStage: 0
+    maxStage: 0
+  - order: {fileID: 11400000, guid: bccd1271f28fcd44d8c39829a2caf5c2, type: 2}
+    weight: 6
     minStage: 0
     maxStage: 0

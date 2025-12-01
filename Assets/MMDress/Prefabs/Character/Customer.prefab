@@ -102,8 +102,10 @@ MonoBehaviour:
   defaultWaitDurationSec: 15
   despawnDuration: 1
   despawnEase: 26
-  requestedTop: {fileID: 0}
-  requestedBottom: {fileID: 0}
+  walkSquashY: 0.9
+  walkSquashDuration: 0.15
+  requestedTop: {fileID: 11400000, guid: e0b758c523689b24ba8490fe728186ca, type: 2}
+  requestedBottom: {fileID: 11400000, guid: 279d1d5715d45734aa93d263f846e0b8, type: 2}
   reputation: {fileID: 0}
   waitTimerBridge: {fileID: 5609021067655370924}
 --- !u!114 &3536193638109412727
