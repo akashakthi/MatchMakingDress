@@ -1,7 +1,7 @@
-// Assets/MMDress/Scripts/Runtime/Services/EconomyService.cs
 using UnityEngine;
 using MMDress.Core;
-using MMDress.UI;
+using MMDress.UI;                  // MoneyChanged
+using CheckoutEvt = MMDress.Gameplay.CustomerCheckout;
 
 namespace MMDress.Services
 {
@@ -12,21 +12,29 @@ namespace MMDress.Services
 
         [Header("Balance (runtime)")]
         [SerializeField] private int balance = 0;
-
-        [Header("Payout saat CustomerCheckout (opsional)")]
-        [SerializeField] private bool enablePayoutOnCheckout = false;
-        [SerializeField] private int payoutFull = 200;
-        [SerializeField] private int payoutPartial = 0;
-        [SerializeField] private int payoutEmpty = 0;
-        [SerializeField, Min(0f)] private float receiveWindowSec = 0.25f;
-
         public int Balance => balance;
 
-        System.Action<CustomerCheckout> _onCheckout;
+        [Header("Payout saat CustomerCheckout")]
+        [SerializeField] private bool enablePayoutOnCheckout = true;
+
+        [Tooltip("Uang yang diterima jika outfit LENGKAP dan SESUAI order.")]
+        [SerializeField] private int payoutFull = 500;
+
+        [Tooltip("Jika outfit lengkap tetapi SALAH order (boleh 0 kalau tidak mau dibayar).")]
+        [SerializeField] private int payoutWrong = 0;
+
+        [Tooltip("Jika hanya 1 item atau 0 item (partial/empty).")]
+        [SerializeField] private int payoutPartialOrEmpty = 0;
+
+        [SerializeField, Min(0f)]
+        private float receiveWindowSec = 0.25f; // reserved kalau mau anti double-event
+
+        System.Action<CheckoutEvt> _onCheckout;
 
         void Awake()
         {
-            if (PlayerPrefs.HasKey(PrefKey)) balance = PlayerPrefs.GetInt(PrefKey, balance);
+            if (PlayerPrefs.HasKey(PrefKey))
+                balance = PlayerPrefs.GetInt(PrefKey, balance);
         }
 
         void Start()
@@ -39,18 +47,37 @@ namespace MMDress.Services
         {
             if (!enablePayoutOnCheckout) return;
 
-            _onCheckout = e =>
-            {
-                int amt = e.itemsEquipped >= 2 ? payoutFull :
-                          e.itemsEquipped == 1 ? payoutPartial : payoutEmpty;
-                if (amt > 0) Add(amt);
-            };
+            _onCheckout = OnCustomerCheckout;
             ServiceLocator.Events.Subscribe(_onCheckout);
         }
 
         void OnDisable()
         {
-            if (_onCheckout != null) ServiceLocator.Events.Unsubscribe(_onCheckout);
+            if (_onCheckout != null)
+                ServiceLocator.Events.Unsubscribe(_onCheckout);
+        }
+
+        void OnCustomerCheckout(CheckoutEvt e)
+        {
+            // Definisi:
+            // - e.itemsEquipped: 0..2 (top+bottom)
+            // - e.isCorrectOrder: true kalau top & bottom sesuai request customer
+
+            int amt = 0;
+
+            if (e.itemsEquipped >= 2)
+            {
+                // outfit lengkap (top + bottom)
+                amt = e.isCorrectOrder ? payoutFull : payoutWrong;
+            }
+            else
+            {
+                // 0 atau 1 item
+                amt = payoutPartialOrEmpty;
+            }
+
+            if (amt != 0)
+                Add(amt);
         }
 
         public bool CanSpend(int amount) => amount <= balance;

@@ -7023,8 +7023,15 @@ MonoBehaviour:
   seatsRoot: {fileID: 1538666857}
   queueRoot: {fileID: 1801781892}
   customerPrefabs:
-  - {fileID: 250001714375331451, guid: 526186234674db04eb1c2eb6c690efd5, type: 3}
   - {fileID: 250001714375331451, guid: 467c749809b833543aa1bcde1bfb85ea, type: 3}
+  - {fileID: 250001714375331451, guid: 0e99136975f8e97448f192ba26c75f08, type: 3}
+  - {fileID: 250001714375331451, guid: 0612a49f5adc38b4cb7d2b483821e733, type: 3}
+  - {fileID: 250001714375331451, guid: 0b79085a7d633134193ca75faa9ea088, type: 3}
+  - {fileID: 250001714375331451, guid: da7a6d0eff51cc74fac77fff6355e5b4, type: 3}
+  - {fileID: 250001714375331451, guid: 7aa9437d69592e94fb8dcbe0118a382b, type: 3}
+  - {fileID: 250001714375331451, guid: c16d0aa74d8a83f4092a24640a9417c2, type: 3}
+  - {fileID: 250001714375331451, guid: 6d847717cb3ca6e4c92489abd066c57b, type: 3}
+  - {fileID: 250001714375331451, guid: 282abaa0e0af2d240afc8966c053c886, type: 3}
   spawnInterval: 3
   maxInScene: 3
   waitSecondsRange: {x: 10, y: 20}
@@ -7338,7 +7345,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!224 &877849729
 RectTransform:
   m_ObjectHideFlags: 0
@@ -7356,7 +7363,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 1}
   m_AnchorMax: {x: 0, y: 1}
-  m_AnchoredPosition: {x: 412, y: -602}
+  m_AnchoredPosition: {x: 468, y: -389}
   m_SizeDelta: {x: 200, y: 200}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &877849730
@@ -13170,7 +13177,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!224 &1609160077
 RectTransform:
   m_ObjectHideFlags: 0
@@ -13442,6 +13449,7 @@ GameObject:
   - component: {fileID: 1626536512}
   - component: {fileID: 1626536513}
   - component: {fileID: 1626536514}
+  - component: {fileID: 1626536515}
   m_Layer: 0
   m_Name: '[_Services]'
   m_TagString: Untagged
@@ -13481,8 +13489,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   night00to06Seconds: 0
-  prepSeconds: 5
-  openSeconds: 5
+  prepSeconds: 20
+  openSeconds: 100
   closed16to24Seconds: 20
 --- !u!4 &1626536504
 Transform:
@@ -13543,8 +13551,8 @@ MonoBehaviour:
   balance: 10000
   enablePayoutOnCheckout: 1
   payoutFull: 200
-  payoutPartial: 100
-  payoutEmpty: 0
+  payoutWrong: 0
+  payoutPartialOrEmpty: 0
   receiveWindowSec: 0.25
 --- !u!114 &1626536509
 MonoBehaviour:
@@ -13660,6 +13668,27 @@ MonoBehaviour:
   economy: {fileID: 1626536508}
   reputation: {fileID: 1626536502}
   autoFindServices: 1
+--- !u!114 &1626536515
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1626536501}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8b3137082d00e85409c24e29fb001c9b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  thresholdPercent: 100
+  triggerOnce: 1
+  panelRoot: {fileID: 1626536501}
+  pages: []
+  nextButton: {fileID: 0}
+  autoFindPagesFromChildren: 1
+  mainMenuSceneName: MainMenu
+  reputation: {fileID: 1626536502}
+  autoFindService: 1
 --- !u!1 &1630781348
 GameObject:
   m_ObjectHideFlags: 0

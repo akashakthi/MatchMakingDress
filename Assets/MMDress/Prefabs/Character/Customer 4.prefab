@@ -16,7 +16,7 @@ GameObject:
   - component: {fileID: 4921839372231263025}
   - component: {fileID: 6422788867885728206}
   m_Layer: 0
-  m_Name: Customer
+  m_Name: Customer 4
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -576,7 +576,7 @@ SpriteRenderer:
   m_SortingLayerID: 0
   m_SortingLayer: 0
   m_SortingOrder: -1
-  m_Sprite: {fileID: 3694663647772743127, guid: fa43c1bd9b7230c41a9b5ed8592577fc, type: 3}
+  m_Sprite: {fileID: -7667378889144963183, guid: fa43c1bd9b7230c41a9b5ed8592577fc, type: 3}
   m_Color: {r: 1, g: 1, b: 1, a: 1}
   m_FlipX: 0
   m_FlipY: 0
