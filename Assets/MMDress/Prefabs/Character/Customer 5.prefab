@@ -99,11 +99,14 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   moveSpeed: 2
   arriveThreshold: 0.05
-  defaultWaitDurationSec: 15
+  defaultWaitDurationSec: 90
   despawnDuration: 0.25
   despawnEase: 26
   walkSquashY: 0.9
   walkSquashDuration: 0.15
+  audioSource: {fileID: 0}
+  clickSfx: {fileID: 8300000, guid: 7b7c2ead77754724aae4fdfe7aa5932c, type: 3}
+  servedCorrectSfx: {fileID: 8300000, guid: d153997c3c9ec0041b1d90b3fb23e79e, type: 3}
   requestedTop: {fileID: 11400000, guid: ad188f013a88646418c5f9c46d98516d, type: 2}
   requestedBottom: {fileID: 11400000, guid: 2bc56a2327157634bba6e1935196e814, type: 2}
   reputation: {fileID: 0}
@@ -149,7 +152,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a7c3bf56cacc523469052ad0cdcf97a5, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  currentOrder: {fileID: 11400000, guid: 1da80bffeeddedd419e3af16864a081c, type: 2}
+  currentOrder: {fileID: 0}
   verbose: 1
 --- !u!114 &6422788867885728206
 MonoBehaviour:

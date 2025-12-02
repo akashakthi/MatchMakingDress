@@ -13,5 +13,5 @@ MonoBehaviour:
   m_Name: ORDER 4
   m_EditorClassIdentifier: 
   requiredTop: {fileID: 11400000, guid: c13aad7815e39cb4292d6782591d8d75, type: 2}
-  requiredBottom: {fileID: 11400000, guid: 0cc2ca2069580804b989217f9de56a17, type: 2}
+  requiredBottom: {fileID: 11400000, guid: 59138e59a505e3c44be28bdd98ec24fb, type: 2}
   payout: 100

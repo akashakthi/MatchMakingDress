@@ -48,6 +48,13 @@ namespace MMDress.UI.Animations
         [SerializeField, Range(0f, 1f)] private float elasticity = 0.8f;
         [SerializeField, Min(0f)] private float durPunch = 0.28f;
 
+        // --- BAGIAN BARU: AUDIO ---
+        [Header("Audio")]
+        [Tooltip("Drag AudioSource di sini. Jika kosong, script akan mencari di GameObject ini.")]
+        [SerializeField] private AudioSource audioSource;
+        [SerializeField] private AudioClip clickSound;
+        // --------------------------
+
         [Header("Misc")]
         [SerializeField] private bool updateIndependent = true;
 
@@ -66,6 +73,8 @@ namespace MMDress.UI.Animations
 #if UNITY_TEXTMESHPRO
             if (!targetText)  targetText = GetComponentInChildren<TMP_Text>(true);
 #endif
+            // Auto find AudioSource saat di-reset di editor
+            if (!audioSource) audioSource = GetComponent<AudioSource>();
         }
 
         void Awake()
@@ -78,6 +87,8 @@ namespace MMDress.UI.Animations
 #if UNITY_TEXTMESHPRO
             if (tintText  && targetText)  targetText.color  = normalColor;
 #endif
+            // Fallback jika audioSource lupa diassign di inspector
+            if (!audioSource) audioSource = GetComponent<AudioSource>();
 
             _btn.onClick.AddListener(OnClicked);
         }
@@ -92,7 +103,7 @@ namespace MMDress.UI.Animations
 
         void OnDestroy()
         {
-            _btn.onClick.RemoveListener(OnClicked);
+            if (_btn) _btn.onClick.RemoveListener(OnClicked);
             KillAll();
         }
 
@@ -167,6 +178,13 @@ namespace MMDress.UI.Animations
             if (!IsInteractable()) return;
 
             KillAll();
+
+            // --- AUDIO PLAYBACK ---
+            if (audioSource != null && clickSound != null)
+            {
+                audioSource.PlayOneShot(clickSound);
+            }
+            // ----------------------
 
             if (target)
             {

@@ -10,12 +10,12 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 58a3f072a561f674cb5887719e71a5d2, type: 3}
-  m_Name: Bottom_5
+  m_Name: modern3
   m_EditorClassIdentifier: 
-  id: bottom_3406
-  displayName: Bottom 3
-  slot: 1
-  sprite: {fileID: -574028986238006824, guid: 7d60700a72a2b9d4f88028e31e2b3c21, type: 3}
+  id: modern3
+  displayName: modern3
+  slot: 0
+  sprite: {fileID: 6591368777068248199, guid: 9e4c02f461e3d6843ab103635e351211, type: 3}
   requiresMaterials: 1
   materialCosts:
   - material: {fileID: 11400000, guid: 39827433ff149f247a031cd7a7ad65db, type: 2}

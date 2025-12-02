@@ -10,12 +10,12 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 58a3f072a561f674cb5887719e71a5d2, type: 3}
-  m_Name: Top_5
+  m_Name: encim
   m_EditorClassIdentifier: 
-  id: top_5
-  displayName: Top 5
+  id: encim
+  displayName: encim
   slot: 0
-  sprite: {fileID: 1086122204052039146, guid: 41f7fa8df74519148ac1c038929bc798, type: 3}
+  sprite: {fileID: 7008431911406251333, guid: 16912fc299908ed429e1820599ae198f, type: 3}
   requiresMaterials: 1
   materialCosts:
   - material: {fileID: 11400000, guid: 39827433ff149f247a031cd7a7ad65db, type: 2}

@@ -151,6 +151,8 @@ MonoBehaviour:
   vibrato: 12
   elasticity: 0.8
   durPunch: 0.28
+  audioSource: {fileID: 0}
+  clickSound: {fileID: 8300000, guid: ae00bac5aa18fba4da0223d9f2406fe1, type: 3}
   updateIndependent: 1
 --- !u!1 &4502353705651796158
 GameObject:

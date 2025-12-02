@@ -173,7 +173,8 @@ TextureImporter:
     secondaryTextures: []
     spriteCustomMetadata:
       entries: []
-    nameFileIdTable: {}
+    nameFileIdTable:
+      MoneyLogo_0: -5069415649610561263
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 

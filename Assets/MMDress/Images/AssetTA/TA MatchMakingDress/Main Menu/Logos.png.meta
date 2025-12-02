@@ -1,10 +1,10 @@
 fileFormatVersion: 2
-guid: b71577a49009240418c52238514c102e
+guid: fc3499e81a36c784cbb6552fc8dbe79b
 TextureImporter:
   internalIDToNameTable:
   - first:
-      213: -7850967240414815429
-    second: BGSummaryPanel_0
+      213: -8943954236518209237
+    second: Logos_0
   externalObjects: {}
   serializedVersion: 13
   mipmaps:
@@ -139,13 +139,13 @@ TextureImporter:
     serializedVersion: 2
     sprites:
     - serializedVersion: 2
-      name: BGSummaryPanel_0
+      name: Logos_0
       rect:
         serializedVersion: 2
         x: 0
-        y: 0
-        width: 768
-        height: 571
+        y: 4
+        width: 385
+        height: 162
       alignment: 0
       pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -154,8 +154,8 @@ TextureImporter:
       physicsShape: []
       tessellationDetail: -1
       bones: []
-      spriteID: b3b98db14e2cb0390800000000000000
-      internalID: -7850967240414815429
+      spriteID: b296bfc4201b0e380800000000000000
+      internalID: -8943954236518209237
       vertices: []
       indices: 
       edges: []
@@ -173,8 +173,7 @@ TextureImporter:
     secondaryTextures: []
     spriteCustomMetadata:
       entries: []
-    nameFileIdTable:
-      BGSummaryPanel_0: -7850967240414815429
+    nameFileIdTable: {}
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 

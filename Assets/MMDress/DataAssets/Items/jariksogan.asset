@@ -10,12 +10,12 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 58a3f072a561f674cb5887719e71a5d2, type: 3}
-  m_Name: Top_1
+  m_Name: jariksogan
   m_EditorClassIdentifier: 
-  id: top_1
-  displayName: Top 1
-  slot: 0
-  sprite: {fileID: -6941477882693272257, guid: 64737aee33656ec47bd26c14bfa94b4f, type: 3}
+  id: jariksogan
+  displayName: jariksogan
+  slot: 1
+  sprite: {fileID: 3254519311204353765, guid: fbd412574f6de414180b6e928716bec0, type: 3}
   requiresMaterials: 1
   materialCosts:
   - material: {fileID: 11400000, guid: 39827433ff149f247a031cd7a7ad65db, type: 2}

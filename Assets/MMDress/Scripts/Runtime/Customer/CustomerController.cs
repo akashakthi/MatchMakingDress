@@ -31,6 +31,14 @@ namespace MMDress.Customer
         [SerializeField] private float walkSquashY = 0.9f;
         [SerializeField] private float walkSquashDuration = 0.15f;
 
+        [Header("Audio")]
+        [Tooltip("AudioSource untuk memainkan SFX customer (optional).")]
+        [SerializeField] private AudioSource audioSource;
+        [Tooltip("SFX saat customer diklik (masuk fitting room).")]
+        [SerializeField] private AudioClip clickSfx;
+        [Tooltip("SFX saat customer selesai dilayani dengan outfit benar.")]
+        [SerializeField] private AudioClip servedCorrectSfx;
+
         [Header("Order (Requested Outfit)")]
         [SerializeField] private ItemSO requestedTop;
         [SerializeField] private ItemSO requestedBottom;
@@ -98,6 +106,10 @@ namespace MMDress.Customer
         {
             _col = GetComponent<Collider2D>();
             _originalScale = transform.localScale;
+
+            // optional auto find AudioSource di prefab
+            if (!audioSource)
+                audioSource = GetComponent<AudioSource>();
         }
 
         private void OnDisable()
@@ -333,11 +345,26 @@ namespace MMDress.Customer
             return (newPos - target).sqrMagnitude <= (arriveThreshold * arriveThreshold);
         }
 
+        // ---------- AUDIO HELPER ----------
+
+        private void PlaySfx(AudioClip clip)
+        {
+            if (!clip) return;
+
+            if (audioSource != null)
+                audioSource.PlayOneShot(clip);
+            else
+                AudioSource.PlayClipAtPoint(clip, transform.position);
+        }
+
         // ========== Input ==========
 
         public void OnClick()
         {
             if (_state != State.Waiting) return;
+
+            // SFX klik customer (buka fitting)
+            PlaySfx(clickSfx);
 
             _state = State.Fitting;
             OnFittingStarted?.Invoke(this);
@@ -349,9 +376,16 @@ namespace MMDress.Customer
         {
             int items = Mathf.Clamp(equippedCount, 0, 2);
 
+            // kirim event ekonomi & reputasi
             ServiceLocator.Events?.Publish(new CheckoutEvt(this, items, isCorrectOrder));
 
             if (_state != State.Fitting) return;
+
+            // SFX kalau berhasil (ada item & benar)
+            if (items > 0 && isCorrectOrder)
+            {
+                PlaySfx(servedCorrectSfx);
+            }
 
             FreeSeat();
             BeginLeaving();

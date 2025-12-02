@@ -10,12 +10,12 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 58a3f072a561f674cb5887719e71a5d2, type: 3}
-  m_Name: Bottom_2
+  m_Name: kutubaru
   m_EditorClassIdentifier: 
-  id: bottom_3405
-  displayName: Bottom 2
-  slot: 1
-  sprite: {fileID: -8772639065162519962, guid: dc648936acaae814d936e046e6e759d0, type: 3}
+  id: kutubaru
+  displayName: kutubaru
+  slot: 0
+  sprite: {fileID: -6941477882693272257, guid: 64737aee33656ec47bd26c14bfa94b4f, type: 3}
   requiresMaterials: 1
   materialCosts:
   - material: {fileID: 11400000, guid: 39827433ff149f247a031cd7a7ad65db, type: 2}
