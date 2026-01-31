@@ -14772,9 +14772,9 @@ MonoBehaviour:
   repPercent: 0
   stage1Max: 30
   stage2Max: 60
-  stage1Speed: 1
-  stage2Speed: 1.2
-  stage3Speed: 2
+  stage1Speed: 0.2
+  stage2Speed: 0.3
+  stage3Speed: 0.5
   usePlayerPrefs: 1
 --- !u!114 &1626536503
 MonoBehaviour:
@@ -14790,7 +14790,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   night00to06Seconds: 0
   prepSeconds: 90
-  openSeconds: 90
+  openSeconds: 120
   closed16to24Seconds: 20
 --- !u!4 &1626536504
 Transform:

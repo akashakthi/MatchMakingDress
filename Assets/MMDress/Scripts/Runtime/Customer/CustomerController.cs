@@ -20,7 +20,7 @@ namespace MMDress.Customer
         [SerializeField] private float arriveThreshold = 0.05f;
 
         [Header("Waiting")]
-        [SerializeField] private float defaultWaitDurationSec = 15f;
+        [SerializeField] private float defaultWaitDurationSec = 90f;
 
         [Header("Despawn FX")]
         [SerializeField] private float despawnDuration = 0.25f;
