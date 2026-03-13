@@ -3,6 +3,7 @@ using UnityEngine;
 using MMDress.Services;
 using RepService = MMDress.Runtime.Reputation.ReputationService;
 using MMDress.Core;
+using MMDress.Gameplay;
 
 namespace MMDress.Customer
 {
@@ -26,12 +27,17 @@ namespace MMDress.Customer
         }
 
         [Header("Walk Paths (multi waypoint)")]
-        [Tooltip("Setiap element = 1 jalur. Satu customer hanya memakai 1 jalur sekali jalan.")]
         [SerializeField] private WalkPath[] paths;
 
         [Header("Rules")]
         [SerializeField, Min(0.1f)] private float spawnInterval = 3f;
         [SerializeField, Min(1)] private int maxInScene = 3;
+
+        [Header("Wait Time Source")]
+        [Tooltip("Kalau false, CustomerController akan pakai defaultWaitDurationSec miliknya sendiri.")]
+        [SerializeField] private bool overrideCustomerDefaultWait = false;
+
+        [Tooltip("Dipakai hanya jika overrideCustomerDefaultWait = true.")]
         [SerializeField] private Vector2 waitSecondsRange = new Vector2(10, 20);
 
         [Header("Pooling")]
@@ -44,13 +50,15 @@ namespace MMDress.Customer
         [SerializeField] private bool autoFindServices = true;
         [SerializeField] private bool verboseOrderLog = false;
 
-        // ---- runtime state ----
+        [Header("Debug")]
+        [SerializeField] private bool verboseSpawnLog = true;
+
         private float _spawnAccu;
+        private bool _spawnAllowed = true;
+
         private SimplePool<CustomerController> _pool;
         private readonly List<CustomerController> _active = new();
-        // mapping customer -> index path yang dia pakai, supaya path tidak dipakai dobel
-        private readonly Dictionary<CustomerController, int> _customerPath
-            = new Dictionary<CustomerController, int>();
+        private readonly Dictionary<CustomerController, int> _customerPath = new();
 
         private void Reset()
         {
@@ -66,7 +74,7 @@ namespace MMDress.Customer
                 reputation ??= UnityEngine.Object.FindAnyObjectByType<RepService>(FindObjectsInactive.Include);
 #else
                 orderService ??= FindObjectOfType<OrderService>(true);
-                reputation   ??= FindObjectOfType<RepService>(true);
+                reputation ??= FindObjectOfType<RepService>(true);
 #endif
             }
 
@@ -85,7 +93,6 @@ namespace MMDress.Customer
                         if (c) c.gameObject.SetActive(false);
                     });
 
-                // prewarm
                 for (int i = 0; i < prewarm; i++)
                 {
                     var tmp = _pool.Get();
@@ -96,6 +103,7 @@ namespace MMDress.Customer
 
         private void Update()
         {
+            if (!_spawnAllowed) return;
             if (!CanSpawn()) return;
 
             _spawnAccu += Time.deltaTime;
@@ -106,10 +114,39 @@ namespace MMDress.Customer
                 if (_active.Count >= maxInScene) break;
 
                 int pathIndex = FindRandomFreePath();
-                if (pathIndex < 0) break; // semua path dipakai
+                if (pathIndex < 0) break;
 
                 SpawnToPath(pathIndex);
             }
+        }
+
+        public void SetSpawnAllowed(bool allowed, bool resetAccumulator = true)
+        {
+            _spawnAllowed = allowed;
+
+            if (resetAccumulator)
+                _spawnAccu = 0f;
+
+            if (verboseSpawnLog)
+                Debug.Log($"[CustomerSpawner] SetSpawnAllowed={allowed} | resetAccumulator={resetAccumulator}", this);
+        }
+
+        public void ClearAllActiveCustomers(bool resetAccumulator = true)
+        {
+            if (verboseSpawnLog)
+                Debug.Log($"[CustomerSpawner] ClearAllActiveCustomers count={_active.Count}", this);
+
+            for (int i = _active.Count - 1; i >= 0; i--)
+            {
+                var c = _active[i];
+                if (!c) continue;
+                Release(c);
+            }
+
+            _customerPath.Clear();
+
+            if (resetAccumulator)
+                _spawnAccu = 0f;
         }
 
         private bool CanSpawn()
@@ -120,7 +157,6 @@ namespace MMDress.Customer
             return true;
         }
 
-        /// <summary>Cari satu index path yang belum dipakai customer manapun.</summary>
         private int FindRandomFreePath()
         {
             if (paths == null || paths.Length == 0) return -1;
@@ -145,8 +181,7 @@ namespace MMDress.Customer
             if (free == null || free.Count == 0)
                 return -1;
 
-            int pick = free[Random.Range(0, free.Count)];
-            return pick;
+            return free[Random.Range(0, free.Count)];
         }
 
         private CustomerController CreateNew()
@@ -196,7 +231,6 @@ namespace MMDress.Customer
             _active.Add(c);
             _customerPath[c] = pathIndex;
 
-            // --- build path dari Transform[] ke Vector3[] ---
             Vector3[] pathPositions = null;
             var wp = paths[pathIndex];
 
@@ -207,24 +241,26 @@ namespace MMDress.Customer
                     pathPositions[i] = wp.waypoints[i].position;
             }
 
-            // titik akhir = waypoint terakhir (spot tunggu / “seat” imajiner)
             Vector3 seatPos = (pathPositions != null && pathPositions.Length > 0)
                 ? pathPositions[pathPositions.Length - 1]
                 : c.transform.position;
 
-            float waitSec = Random.Range(waitSecondsRange.x, waitSecondsRange.y);
+            // INI KUNCI PERUBAHANNYA:
+            // kalau overrideCustomerDefaultWait = false, kirim 0f agar CustomerController
+            // memakai defaultWaitDurationSec miliknya sendiri.
+            float waitSec = 0f;
+            if (overrideCustomerDefaultWait)
+                waitSec = Random.Range(waitSecondsRange.x, waitSecondsRange.y);
 
-            // panggil InitSeat versi baru (tanpa exitPos)
             c.InitSeat(
                 seatPos,
-                -1,                 // seatIndex tidak dipakai (dummy)
-                _ => { },           // onSeatFreed dummy (tidak ada kursi fisik)
+                -1,
+                _ => { },
                 waitSec,
                 OnCustomerDespawn,
                 pathPositions
             );
 
-            // ==== Assign order via CustomerOrder ====
             if (orderService)
             {
                 var holder = c.GetComponent<CustomerOrder>();
@@ -234,8 +270,17 @@ namespace MMDress.Customer
 
                     if (verboseOrderLog)
                         Debug.Log($"[Spawner] Assigned order: {holder.GetDebugString()} ke {c.name}", this);
+
+                    if (!holder.HasOrder)
+                        Debug.LogWarning($"[Spawner] Customer {c.name} spawned WITHOUT order. Check OrderService / library stage setup.", this);
+                }
+                else
+                {
+                    Debug.LogWarning($"[Spawner] CustomerOrder tidak ditemukan di {c.name}", c);
                 }
             }
+
+            ServiceLocator.Events?.Publish(new CustomerSpawned(c));
         }
 
         private void OnCustomerDespawn(CustomerController c)
