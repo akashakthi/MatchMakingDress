@@ -1,11 +1,9 @@
-﻿// Assets/MMDress/Scripts/Runtime/Customer/CustomerController.cs
-using System;
+﻿using System;
 using UnityEngine;
 using DG.Tweening;
 using MMDress.Core;
 using MMDress.Gameplay;
 using MMDress.UI;
-using MMDress.Runtime.Reputation;
 using MMDress.Runtime.Integration;
 using MMDress.Data;
 using CheckoutEvt = MMDress.Gameplay.CustomerCheckout;
@@ -20,6 +18,7 @@ namespace MMDress.Customer
         [SerializeField] private float arriveThreshold = 0.05f;
 
         [Header("Waiting")]
+        [Tooltip("Default timer dasar semua customer. Dipakai kalau spawner tidak override.")]
         [SerializeField] private float defaultWaitDurationSec = 90f;
 
         [Header("Despawn FX")]
@@ -47,8 +46,11 @@ namespace MMDress.Customer
         public ItemSO RequestedBottom => requestedBottom;
 
         [Header("Services & Bridges")]
-        [SerializeField] private ReputationService reputation;                 // optional
-        [SerializeField] private WaitTimerReputationBridge waitTimerBridge;    // optional
+        [SerializeField] private WaitTimerReputationBridge waitTimerBridge;
+
+        [Header("Debug")]
+        [SerializeField] private bool enableDebugLog = true;
+        [SerializeField] private bool logTimerEverySecond = false;
 
         private enum State
         {
@@ -67,35 +69,41 @@ namespace MMDress.Customer
         private Collider2D _col;
 
         // Seat / Queue
-        private Vector3 _seatPos; private int _seatIndex = -1; private Action<int> _onSeatFreed;
-        private Vector3 _queuePos; private int _queueIndex = -1; private Action<int> _onQueueFreed;
+        private Vector3 _seatPos;
+        private int _seatIndex = -1;
+        private Action<int> _onSeatFreed;
 
-        // Path (dari pintu ke area antre/duduk)
+        private Vector3 _queuePos;
+        private int _queueIndex = -1;
+        private Action<int> _onQueueFreed;
+
+        // Path
         private Vector3[] _path;
         private int _pathIndex;
 
-        // Timer logic
+        // Timer
         private WaitTimer _timer;
-        private float _pendingWaitSec;   // waktu dasar saat nanti naik seat (dari queue)
-        private bool _timeoutHandled;    // supaya timeout cuma sekali
+        private float _pendingWaitSec;
+        private bool _timeoutHandled;
+        private float _lastResolvedWaitDuration = -1f;
+        private float _debugTimerLogAccumulator;
 
-        // Despawn callback (pooling)
+        // Despawn callback
         private Action<CustomerController> _onDespawn;
 
-        // FX (scale + tween)
+        // FX
         private Vector3 _originalScale;
         private Tween _despawnTween;
         private Tween _walkTween;
         private bool _wasWalking;
 
-        // Events (untuk HUD/UI lain)
+        // Events
         public event Action<CustomerController> OnWaitingStarted;
-        public event Action<CustomerController, float> OnWaitProgress; // frac 1→0
+        public event Action<CustomerController, float> OnWaitProgress; // 1 -> 0
         public event Action<CustomerController> OnTimedOut;
         public event Action<CustomerController> OnFittingStarted;
         public event Action<CustomerController> OnLeavingStarted;
 
-        // helper untuk efek kedut (kalau mau dipakai UI)
         public bool IsWalking =>
             _state == State.PathToQueue ||
             _state == State.EnteringQueue ||
@@ -107,9 +115,15 @@ namespace MMDress.Customer
             _col = GetComponent<Collider2D>();
             _originalScale = transform.localScale;
 
-            // optional auto find AudioSource di prefab
             if (!audioSource)
                 audioSource = GetComponent<AudioSource>();
+
+            if (enableDebugLog)
+            {
+                Debug.Log(
+                    $"[CustomerController:{name}] Awake | defaultWaitDurationSec={defaultWaitDurationSec}",
+                    this);
+            }
         }
 
         private void OnDisable()
@@ -121,7 +135,7 @@ namespace MMDress.Customer
             transform.localScale = _originalScale;
         }
 
-        // ---------- INIT dari Spawner ----------
+        // ---------- INIT ----------
 
         public void InitSeat(
             Vector3 seatPos,
@@ -137,13 +151,29 @@ namespace MMDress.Customer
             _onDespawn = onDespawn;
 
             _timeoutHandled = false;
-            _timer = new WaitTimer(waitSec > 0 ? waitSec : defaultWaitDurationSec);
-            if (waitTimerBridge) waitTimerBridge.Bind(_timer);
+            _debugTimerLogAccumulator = 0f;
+
+            float resolvedWait = ResolveWaitDuration(waitSec);
+            _lastResolvedWaitDuration = resolvedWait;
+
+            if (enableDebugLog)
+            {
+                Debug.Log(
+                    $"[CustomerController:{name}] InitSeat | waitSecArg={waitSec} | defaultWaitDurationSec={defaultWaitDurationSec} | resolvedWait={resolvedWait}",
+                    this);
+            }
+
+            _timer = new WaitTimer(resolvedWait);
+
+            if (waitTimerBridge)
+                waitTimerBridge.Bind(_timer);
 
             _path = path;
             _pathIndex = 0;
 
-            _state = (_path != null && _path.Length > 0) ? State.PathToSeat : State.EnteringSeat;
+            _state = (_path != null && _path.Length > 0)
+                ? State.PathToSeat
+                : State.EnteringSeat;
 
             if (_col) _col.enabled = true;
             transform.localScale = _originalScale;
@@ -160,22 +190,32 @@ namespace MMDress.Customer
             _queuePos = queuePos;
             _queueIndex = queueIndex;
             _onQueueFreed = onQueueFreed;
-            _pendingWaitSec = futureWaitSec > 0 ? futureWaitSec : defaultWaitDurationSec;
+
+            _pendingWaitSec = ResolveWaitDuration(futureWaitSec);
             _onDespawn = onDespawn;
 
             _timeoutHandled = false;
-            _timer = null; // timer baru akan dibuat saat duduk
+            _debugTimerLogAccumulator = 0f;
+            _timer = null;
+
+            if (enableDebugLog)
+            {
+                Debug.Log(
+                    $"[CustomerController:{name}] InitQueue | futureWaitSecArg={futureWaitSec} | defaultWaitDurationSec={defaultWaitDurationSec} | pendingWaitSec={_pendingWaitSec}",
+                    this);
+            }
 
             _path = path;
             _pathIndex = 0;
 
-            _state = (_path != null && _path.Length > 0) ? State.PathToQueue : State.EnteringQueue;
+            _state = (_path != null && _path.Length > 0)
+                ? State.PathToQueue
+                : State.EnteringQueue;
 
             if (_col) _col.enabled = true;
             transform.localScale = _originalScale;
         }
 
-        // Dipanggil spawner saat ada kursi kosong
         public void PromoteToSeat(Vector3 seatPos, int seatIndex, Action<int> onSeatFreed)
         {
             FreeQueue();
@@ -185,12 +225,25 @@ namespace MMDress.Customer
             _onSeatFreed = onSeatFreed;
 
             _timeoutHandled = false;
-            _timer = new WaitTimer(_pendingWaitSec > 0 ? _pendingWaitSec : defaultWaitDurationSec);
-            if (waitTimerBridge) waitTimerBridge.Bind(_timer);
+            _debugTimerLogAccumulator = 0f;
+
+            float resolvedWait = ResolveWaitDuration(_pendingWaitSec);
+            _lastResolvedWaitDuration = resolvedWait;
+
+            if (enableDebugLog)
+            {
+                Debug.Log(
+                    $"[CustomerController:{name}] PromoteToSeat | pendingWaitSec={_pendingWaitSec} | defaultWaitDurationSec={defaultWaitDurationSec} | resolvedWait={resolvedWait}",
+                    this);
+            }
+
+            _timer = new WaitTimer(resolvedWait);
+
+            if (waitTimerBridge)
+                waitTimerBridge.Bind(_timer);
 
             _path = null;
             _pathIndex = 0;
-
             _state = State.EnteringSeat;
         }
 
@@ -207,13 +260,22 @@ namespace MMDress.Customer
                     break;
 
                 case State.EnteringQueue:
-                    if (MoveTo(_queuePos)) _state = State.Queued;
+                    if (MoveTo(_queuePos))
+                        _state = State.Queued;
                     break;
 
                 case State.EnteringSeat:
                     if (MoveTo(_seatPos))
                     {
                         _state = State.Waiting;
+
+                        if (enableDebugLog)
+                        {
+                            Debug.Log(
+                                $"[CustomerController:{name}] Enter Waiting | resolvedWait={_lastResolvedWaitDuration}",
+                                this);
+                        }
+
                         OnWaitingStarted?.Invoke(this);
                         OnWaitProgress?.Invoke(this, 1f);
                     }
@@ -224,19 +286,23 @@ namespace MMDress.Customer
                     break;
 
                 case State.Fitting:
-                    // timer tetap berjalan saat fitting → kalau habis, dianggap timeout
+                    // timer tetap jalan saat fitting
                     TickTimerAndMaybeTimeout();
                     break;
 
                 case State.Leaving:
-                    // Tidak perlu MoveTo exit; tinggal tunggu tween selesai
                     break;
             }
 
             HandleWalkFx();
         }
 
-        // ---------- TIMER + TIMEOUT ----------
+        // ---------- TIMER ----------
+
+        private float ResolveWaitDuration(float incoming)
+        {
+            return incoming > 0f ? incoming : defaultWaitDurationSec;
+        }
 
         private void TickTimerAndMaybeTimeout()
         {
@@ -246,8 +312,27 @@ namespace MMDress.Customer
             _timer.Tick(Time.deltaTime);
             OnWaitProgress?.Invoke(this, _timer.Fraction);
 
+            if (enableDebugLog && logTimerEverySecond)
+            {
+                _debugTimerLogAccumulator += Time.deltaTime;
+                if (_debugTimerLogAccumulator >= 1f)
+                {
+                    _debugTimerLogAccumulator = 0f;
+                    Debug.Log(
+                        $"[CustomerController:{name}] TickTimer | state={_state} | fraction={_timer.Fraction:0.000} | deltaTime={Time.deltaTime:0.000}",
+                        this);
+                }
+            }
+
             if (_timer.IsDone)
             {
+                if (enableDebugLog)
+                {
+                    Debug.Log(
+                        $"[CustomerController:{name}] Timer DONE | state={_state} | resolvedWait={_lastResolvedWaitDuration}",
+                        this);
+                }
+
                 HandleTimeout();
             }
         }
@@ -257,19 +342,23 @@ namespace MMDress.Customer
             if (_timeoutHandled) return;
             _timeoutHandled = true;
 
-            // beritahu listener instance (UI, dsb.)
+            if (enableDebugLog)
+            {
+                Debug.Log(
+                    $"[CustomerController:{name}] HandleTimeout triggered",
+                    this);
+            }
+
             OnTimedOut?.Invoke(this);
 
-            // checkout gagal (0 item, salah)
             FreeSeat();
             ServiceLocator.Events?.Publish(new CheckoutEvt(this, 0, false));
             ServiceLocator.Events?.Publish(new CustomerTimedOut(this));
 
-            // mulai keluar (fade & despawn)
             BeginLeaving();
         }
 
-        // ---------- WALK FX (flip + kedut) ----------
+        // ---------- WALK FX ----------
 
         private void HandleWalkFx()
         {
@@ -332,11 +421,10 @@ namespace MMDress.Customer
             Vector3 newPos = Vector3.MoveTowards(before, target, moveSpeed * Time.deltaTime);
             transform.position = newPos;
 
-            // Flip kanan/kiri berdasarkan arah gerak X
             Vector3 delta = newPos - before;
             if (Mathf.Abs(delta.x) > 0.0001f)
             {
-                float sign = Mathf.Sign(delta.x); // kanan = +1, kiri = -1
+                float sign = Mathf.Sign(delta.x);
                 var s = transform.localScale;
                 s.x = Mathf.Abs(s.x) * (sign > 0 ? 1f : -1f);
                 transform.localScale = s;
@@ -345,7 +433,7 @@ namespace MMDress.Customer
             return (newPos - target).sqrMagnitude <= (arriveThreshold * arriveThreshold);
         }
 
-        // ---------- AUDIO HELPER ----------
+        // ---------- AUDIO ----------
 
         private void PlaySfx(AudioClip clip)
         {
@@ -357,13 +445,19 @@ namespace MMDress.Customer
                 AudioSource.PlayClipAtPoint(clip, transform.position);
         }
 
-        // ========== Input ==========
+        // ---------- INPUT ----------
 
         public void OnClick()
         {
             if (_state != State.Waiting) return;
 
-            // SFX klik customer (buka fitting)
+            if (enableDebugLog)
+            {
+                Debug.Log(
+                    $"[CustomerController:{name}] Clicked -> enter Fitting",
+                    this);
+            }
+
             PlaySfx(clickSfx);
 
             _state = State.Fitting;
@@ -371,21 +465,25 @@ namespace MMDress.Customer
             ServiceLocator.Events?.Publish(new CustomerSelected(this));
         }
 
-        // === API dipanggil UI ===
+        // ---------- FITTING RESULT ----------
+
         public void FinishFitting(int equippedCount, bool isCorrectOrder)
         {
             int items = Mathf.Clamp(equippedCount, 0, 2);
 
-            // kirim event ekonomi & reputasi
+            if (enableDebugLog)
+            {
+                Debug.Log(
+                    $"[CustomerController:{name}] FinishFitting | items={items} | isCorrectOrder={isCorrectOrder}",
+                    this);
+            }
+
             ServiceLocator.Events?.Publish(new CheckoutEvt(this, items, isCorrectOrder));
 
             if (_state != State.Fitting) return;
 
-            // SFX kalau berhasil (ada item & benar)
             if (items > 0 && isCorrectOrder)
-            {
                 PlaySfx(servedCorrectSfx);
-            }
 
             FreeSeat();
             BeginLeaving();
@@ -399,6 +497,13 @@ namespace MMDress.Customer
         private void BeginLeaving()
         {
             if (_state == State.Leaving) return;
+
+            if (enableDebugLog)
+            {
+                Debug.Log(
+                    $"[CustomerController:{name}] BeginLeaving",
+                    this);
+            }
 
             _state = State.Leaving;
             if (_col) _col.enabled = false;

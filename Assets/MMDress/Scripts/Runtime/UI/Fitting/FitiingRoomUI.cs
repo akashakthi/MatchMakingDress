@@ -1,12 +1,10 @@
 ﻿using UnityEngine;
 using UnityEngine.UI;
 using MMDress.Core;
-using MMDress.Gameplay;          // FittingUIOpened, FittingUIClosed
+using MMDress.Gameplay;
 using MMDress.Data;
-using MMDress.UI;                // CharacterOutfitController
 using MMDress.Services;
-using MMDress.Runtime.Inventory;
-using MMDress.Customer;          // CustomerController, CustomerOrder
+using MMDress.Customer;
 
 namespace MMDress.UI
 {
@@ -14,8 +12,6 @@ namespace MMDress.UI
     [AddComponentMenu("MMDress/UI/Fitting Room UI")]
     public sealed class FittingRoomUI : MonoBehaviour
     {
-        #region Inspector
-
         [Header("Panel Root")]
         [SerializeField] private GameObject panelRoot;
 
@@ -37,25 +33,14 @@ namespace MMDress.UI
 
         [Header("Options")]
         [SerializeField] private bool autoFindInChildren = true;
-
-        #endregion
-
-        #region Runtime state
+        [SerializeField] private bool forbidOutOfStockSelection = true;
 
         private CustomerController _current;
-        private OutfitSlot _activeTab = OutfitSlot.Top;
-
         private ItemSO _equippedTop;
         private ItemSO _equippedBottom;
-
         private ItemSO _previewTop;
         private ItemSO _previewBottom;
-
         private CanvasGroup _cg;
-
-        #endregion
-
-        #region Unity
 
         private void Awake()
         {
@@ -82,16 +67,8 @@ namespace MMDress.UI
             _current = null;
         }
 
-        #endregion
-
-        #region Public API
-
-        /// <summary>
-        /// Dipanggil ketika customer diklik (event CustomerSelected → flow kamu).
-        /// </summary>
         public void Open(CustomerController target)
         {
-            // lepas dulu kalau sebelumnya sudah terhubung ke customer lain
             DetachCurrentCustomer();
 
             _current = target;
@@ -107,13 +84,9 @@ namespace MMDress.UI
             SetVisible(true);
             ShowTab(OutfitSlot.Top);
 
-            ServiceLocator.Events.Publish(new FittingUIOpened());
+            ServiceLocator.Events?.Publish(new FittingUIOpened());
             UpdateEquipButton();
         }
-
-        #endregion
-
-        #region Customer event wiring
 
         private void AttachToCurrentCustomer()
         {
@@ -129,16 +102,9 @@ namespace MMDress.UI
 
         private void OnCurrentTimedOut(CustomerController c)
         {
-            // ini pasti customer yang sama, tapi cek lagi biar aman
             if (c != _current) return;
-
-            // Tutup paksa panel TANPA FinishFitting (checkout sudah dihandle di CustomerController)
             ForceCloseOnTimeout();
         }
-
-        #endregion
-
-        #region UI Helpers
 
         private void SetVisible(bool on)
         {
@@ -159,8 +125,14 @@ namespace MMDress.UI
 
             var visualTop = _previewTop ?? _equippedTop;
             var visualBottom = _previewBottom ?? _equippedBottom;
-
             preview.ApplyEquipped(visualTop, visualBottom);
+        }
+
+        private bool HasStock(ItemSO item)
+        {
+            if (!item) return false;
+            if (!stock) return true;
+            return stock.GetGarment(item) > 0;
         }
 
         private bool TryConsumeEquippedFromStock()
@@ -176,7 +148,8 @@ namespace MMDress.UI
             if (hasTop)
             {
                 topTaken = stock.TryUncraft(_equippedTop, 1, refundMaterials: false);
-                if (!topTaken) return false;
+                if (!topTaken)
+                    return false;
             }
 
             if (hasBottom)
@@ -185,7 +158,7 @@ namespace MMDress.UI
                 if (!bottomTaken)
                 {
                     if (topTaken)
-                        stock.TryCraft(_equippedTop, 1); // rollback
+                        stock.TryCraft(_equippedTop, 1); // rollback top
                     return false;
                 }
             }
@@ -214,24 +187,21 @@ namespace MMDress.UI
                 reqBottom = _current.RequestedBottom;
             }
 
-            bool topOk = (reqTop == null) || (_equippedTop == reqTop);
-            bool bottomOk = (reqBottom == null) || (_equippedBottom == reqBottom);
-            bool hasBoth = (_equippedTop != null && _equippedBottom != null);
+            bool topOk = reqTop != null && _equippedTop == reqTop;
+            bool bottomOk = reqBottom != null && _equippedBottom == reqBottom;
 
-            return hasBoth && topOk && bottomOk;
+            return topOk && bottomOk;
         }
 
         private void ShowTab(OutfitSlot slot)
         {
-            _activeTab = slot;
-
             if (listView)
             {
                 listView.SetCatalog(catalog);
                 listView.SetSlot(slot);
 
                 var selected =
-                    (slot == OutfitSlot.Top)
+                    slot == OutfitSlot.Top
                         ? (_previewTop ?? _equippedTop)
                         : (_previewBottom ?? _equippedBottom);
 
@@ -240,8 +210,8 @@ namespace MMDress.UI
 
             RefreshPreviewFromState();
 
-            if (tabTopButton) tabTopButton.interactable = (slot != OutfitSlot.Top);
-            if (tabBottomButton) tabBottomButton.interactable = (slot != OutfitSlot.Bottom);
+            if (tabTopButton) tabTopButton.interactable = slot != OutfitSlot.Top;
+            if (tabBottomButton) tabBottomButton.interactable = slot != OutfitSlot.Bottom;
 
             UpdateEquipButton();
         }
@@ -253,16 +223,21 @@ namespace MMDress.UI
             bool topChanged = _previewTop != null && _previewTop != _equippedTop;
             bool bottomChanged = _previewBottom != null && _previewBottom != _equippedBottom;
 
-            equipButton.interactable = topChanged || bottomChanged;
+            bool topStockOk = _previewTop == null || !forbidOutOfStockSelection || HasStock(_previewTop);
+            bool bottomStockOk = _previewBottom == null || !forbidOutOfStockSelection || HasStock(_previewBottom);
+
+            equipButton.interactable = (topChanged || bottomChanged) && topStockOk && bottomStockOk;
         }
-
-        #endregion
-
-        #region Callbacks (klik item & konfirmasi)
 
         private void OnItemClicked(ItemSO item)
         {
             if (item == null) return;
+
+            if (forbidOutOfStockSelection && !HasStock(item))
+            {
+                UpdateEquipButton();
+                return;
+            }
 
             if (item.slot == OutfitSlot.Top)
                 _previewTop = item;
@@ -279,24 +254,30 @@ namespace MMDress.UI
         {
             if (_previewTop != null && _previewTop != _equippedTop)
             {
+                if (forbidOutOfStockSelection && !HasStock(_previewTop))
+                {
+                    UpdateEquipButton();
+                    return;
+                }
+
                 _equippedTop = _previewTop;
 
                 if (_current != null)
-                {
-                    OutfitEquippedCommitted.Publish(
-                        ServiceLocator.Events, _current, OutfitSlot.Top, _equippedTop);
-                }
+                    OutfitEquippedCommitted.Publish(ServiceLocator.Events, _current, OutfitSlot.Top, _equippedTop);
             }
 
             if (_previewBottom != null && _previewBottom != _equippedBottom)
             {
+                if (forbidOutOfStockSelection && !HasStock(_previewBottom))
+                {
+                    UpdateEquipButton();
+                    return;
+                }
+
                 _equippedBottom = _previewBottom;
 
                 if (_current != null)
-                {
-                    OutfitEquippedCommitted.Publish(
-                        ServiceLocator.Events, _current, OutfitSlot.Bottom, _equippedBottom);
-                }
+                    OutfitEquippedCommitted.Publish(ServiceLocator.Events, _current, OutfitSlot.Bottom, _equippedBottom);
             }
 
             _previewTop = null;
@@ -310,61 +291,46 @@ namespace MMDress.UI
 
         private void CloseInternalLogic()
         {
-            int equippedCount =
-                (_equippedTop ? 1 : 0) +
-                (_equippedBottom ? 1 : 0);
+            int equippedCount = (_equippedTop ? 1 : 0) + (_equippedBottom ? 1 : 0);
 
-            bool success = true;
-            if (equippedCount > 0)
+            bool success = false;
+            if (equippedCount == 2)
                 success = TryConsumeEquippedFromStock();
 
-            bool isCorrectOrder = false;
-
-            if (success && equippedCount > 0)
-                isCorrectOrder = IsCorrectOrder();
+            bool isCorrectOrder = success && IsCorrectOrder();
 
             if (_current != null)
             {
                 int finalCount = success ? equippedCount : 0;
                 bool finalCorrect = success && isCorrectOrder;
-
                 _current.FinishFitting(finalCount, finalCorrect);
             }
 
-            ServiceLocator.Events.Publish(new FittingUIClosed());
+            ServiceLocator.Events?.Publish(new FittingUIClosed());
 
             DetachCurrentCustomer();
             _current = null;
-
-            _previewTop = _previewBottom = null;
-            _equippedTop = _equippedBottom = null;
-
+            _previewTop = null;
+            _previewBottom = null;
+            _equippedTop = null;
+            _equippedBottom = null;
             SetVisible(false);
         }
 
         public void InternalClose() => CloseInternalLogic();
-
         public void Close() => InternalClose();
-
-        #endregion
-
-        #region Auto close on timeout (from current customer)
 
         private void ForceCloseOnTimeout()
         {
-            // Di sini *tidak* panggil FinishFitting.
-            // CustomerController sudah publish Checkout(0,false) + CustomerTimedOut.
-            ServiceLocator.Events.Publish(new FittingUIClosed());
+            ServiceLocator.Events?.Publish(new FittingUIClosed());
 
             DetachCurrentCustomer();
             _current = null;
-
-            _previewTop = _previewBottom = null;
-            _equippedTop = _equippedBottom = null;
-
+            _previewTop = null;
+            _previewBottom = null;
+            _equippedTop = null;
+            _equippedBottom = null;
             SetVisible(false);
         }
-
-        #endregion
     }
 }

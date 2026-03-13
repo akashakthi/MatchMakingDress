@@ -6,15 +6,14 @@ using MMDress.Data;
 
 namespace MMDress.UI
 {
-    /// Kartu item pada list horizontal: stok 0 tetap bisa preview (hanya gelap).
     [DisallowMultipleComponent]
     public sealed class ItemButtonView : MonoBehaviour
     {
         [Header("UI")]
-        [SerializeField] private Button button;       // WAJIB: Button di root prefab
-        [SerializeField] private Image icon;         // child image untuk sprite item
-        [SerializeField] private TMP_Text label;      // opsional
-        [SerializeField] private TMP_Text stockText;  // angka stok (opsional)
+        [SerializeField] private Button button;
+        [SerializeField] private Image icon;
+        [SerializeField] private TMP_Text label;
+        [SerializeField] private TMP_Text stockText;
 
         [Header("Visual States")]
         [SerializeField, Range(0.2f, 1f)] private float enabledAlpha = 1f;
@@ -38,16 +37,15 @@ namespace MMDress.UI
 
             if (button)
             {
-                // Hindari dobel listener jika prefab pernah diisi lewat Inspector
                 button.onClick.RemoveAllListeners();
                 button.onClick.AddListener(() =>
                 {
-                    if (_data != null)
-                        Clicked?.Invoke(_data); // stok 0 tetap boleh preview
+                    if (_data == null) return;
+                    if (_stock <= 0) return;
+                    Clicked?.Invoke(_data);
                 });
             }
 
-            // Pastikan child grafis tidak memblokir klik ke Button induk
             if (icon) icon.raycastTarget = false;
             if (label) label.raycastTarget = false;
             if (stockText) stockText.raycastTarget = false;
@@ -62,7 +60,6 @@ namespace MMDress.UI
                 icon.sprite = data ? data.sprite : null;
                 icon.enabled = icon.sprite != null;
                 icon.type = Image.Type.Simple;
-                // Tidak perlu SetNativeSize kalau ingin seragam
             }
 
             if (label) label.text = data ? data.displayName : "-";
@@ -80,20 +77,22 @@ namespace MMDress.UI
         {
             if (stockText) stockText.text = stock.ToString();
 
-            float a = (stock > 0) ? enabledAlpha : disabledAlpha;
+            float a = stock > 0 ? enabledAlpha : disabledAlpha;
 
             if (icon) { var c = icon.color; c.a = a; icon.color = c; }
             if (label) { var c = label.color; c.a = a; label.color = c; }
             if (stockText) { var c = stockText.color; c.a = a; stockText.color = c; }
 
-            // Penting: JANGAN menonaktifkan button.interactable (preview tetap boleh)
+            if (button)
+                button.interactable = stock > 0;
         }
 
         public void SetSelected(bool on)
         {
             if (!icon) return;
+
             var c = icon.color;
-            c.a = on ? 1f : enabledAlpha;
+            c.a = on ? 1f : (_stock > 0 ? enabledAlpha : disabledAlpha);
             icon.color = c;
         }
     }

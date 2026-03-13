@@ -4606,6 +4606,7 @@ MonoBehaviour:
   equipButton: {fileID: 2117765037}
   closeButton: {fileID: 0}
   autoFindInChildren: 1
+  forbidOutOfStockSelection: 1
 --- !u!225 &498221223
 CanvasGroup:
   m_ObjectHideFlags: 0
@@ -14769,13 +14770,16 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 7331b2ff3e77dbb44976bf68a5006ff8, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  repPercent: 0
+  repPercent: 10
+  defaultStartingPercent: 10
+  loseThresholdPercent: 0
   stage1Max: 30
   stage2Max: 60
   stage1Speed: 0.2
   stage2Speed: 0.3
   stage3Speed: 0.5
   usePlayerPrefs: 1
+  saveDefaultOnFirstLoad: 1
 --- !u!114 &1626536503
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -14835,7 +14839,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   reputation: {fileID: 1626536502}
-  minEventGap: 0.25
+  autoFindReputation: 1
 --- !u!114 &1626536508
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -14849,11 +14853,12 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   balance: 10000
+  defaultStartingBalance: 10000
+  saveDefaultOnFirstLoad: 1
   enablePayoutOnCheckout: 1
   payoutFull: 500
   payoutWrong: 0
   payoutPartialOrEmpty: 0
-  receiveWindowSec: 0.25
 --- !u!114 &1626536509
 MonoBehaviour:
   m_ObjectHideFlags: 0

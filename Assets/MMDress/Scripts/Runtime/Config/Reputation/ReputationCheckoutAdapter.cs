@@ -1,8 +1,7 @@
-﻿// Assets/MMDress/Scripts/Runtime/Reputation/ReputationOnCheckout.cs
-using UnityEngine;
+﻿using UnityEngine;
 using MMDress.Core;
-using MMDress.Runtime.Reputation;
 using CheckoutEvt = MMDress.Gameplay.CustomerCheckout;
+using TimedOutEvt = MMDress.Gameplay.CustomerTimedOut;
 
 namespace MMDress.Runtime.Reputation
 {
@@ -10,37 +9,43 @@ namespace MMDress.Runtime.Reputation
     public sealed class ReputationOnCheckout : MonoBehaviour
     {
         [SerializeField] private ReputationService reputation;
-        [SerializeField] private float minEventGap = 0.25f;
+        [SerializeField] private bool autoFindReputation = true;
 
-        private float _lastTime;
+        private void Awake()
+        {
+            if (autoFindReputation && !reputation)
+                reputation = FindObjectOfType<ReputationService>(true);
+        }
 
         private void OnEnable()
         {
-            ServiceLocator.Events.Subscribe<CheckoutEvt>(OnCheckout);
+            ServiceLocator.Events?.Subscribe<CheckoutEvt>(OnCheckout);
+            ServiceLocator.Events?.Subscribe<TimedOutEvt>(OnTimedOut);
         }
 
         private void OnDisable()
         {
-            ServiceLocator.Events.Unsubscribe<CheckoutEvt>(OnCheckout);
+            ServiceLocator.Events?.Unsubscribe<CheckoutEvt>(OnCheckout);
+            ServiceLocator.Events?.Unsubscribe<TimedOutEvt>(OnTimedOut);
         }
 
         private void OnCheckout(CheckoutEvt e)
         {
-            // anti double-event
-            if (Time.unscaledTime - _lastTime < minEventGap)
+            if (!reputation)
                 return;
 
-            _lastTime = Time.unscaledTime;
+            bool served = e.itemsEquipped >= 2 && e.isCorrectOrder;
+            bool failed = e.itemsEquipped < 2 || !e.isCorrectOrder;
 
-            if (!reputation) return;
+            reputation.ApplyCheckout(served, failed);
+        }
 
-            // Definisi:
-            // - served = outfit lengkap + order benar
-            // - empty  = kurang dari 2 item ATAU order salah
-            bool served = (e.itemsEquipped >= 2) && e.isCorrectOrder;
-            bool empty = (e.itemsEquipped < 2) || !e.isCorrectOrder;
+        private void OnTimedOut(TimedOutEvt e)
+        {
+            if (!reputation)
+                return;
 
-            reputation.ApplyCheckout(served, empty);
+            reputation.ApplyCheckout(served: false, failed: true);
         }
     }
 }

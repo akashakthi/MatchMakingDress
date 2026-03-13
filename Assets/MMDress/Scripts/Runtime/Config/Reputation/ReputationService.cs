@@ -1,5 +1,4 @@
-﻿// Assets/MMDress/Scripts/Runtime/Reputation/ReputationService.cs
-using System;
+﻿using System;
 using UnityEngine;
 
 namespace MMDress.Runtime.Reputation
@@ -8,12 +7,18 @@ namespace MMDress.Runtime.Reputation
     public sealed class ReputationService : MonoBehaviour
     {
         [Header("State (0..100)")]
-        [Range(0f, 100f)][SerializeField] private float repPercent = 0f;
+        [Range(0f, 100f)]
+        [SerializeField] private float repPercent = 10f;
+
+        [SerializeField] private float defaultStartingPercent = 10f;
+        [SerializeField] private float loseThresholdPercent = 0f;
+
         public float RepPercent => repPercent;
+        public bool IsDepleted => repPercent <= loseThresholdPercent;
 
         [Header("Stage thresholds (%)")]
-        [SerializeField] private float stage1Max = 30f; // ≤30 => Stage 1
-        [SerializeField] private float stage2Max = 60f; // 31–60 => Stage 2, >60 => Stage 3
+        [SerializeField] private float stage1Max = 30f;
+        [SerializeField] private float stage2Max = 60f;
 
         [Header("Speed factors")]
         [SerializeField] private float stage1Speed = 1.0f;
@@ -21,40 +26,97 @@ namespace MMDress.Runtime.Reputation
         [SerializeField] private float stage3Speed = 2.0f;
 
         [Header("Persistence")]
-        [SerializeField] private bool usePlayerPrefs = true;   // default: true biar ke-save
+        [SerializeField] private bool usePlayerPrefs = true;
+        [SerializeField] private bool saveDefaultOnFirstLoad = true;
         private const string PrefKey = "MMDress.RepPercent";
 
         public int Stage { get; private set; } = 1;
         public float CurrentSpeedFactor =>
             Stage == 1 ? stage1Speed : (Stage == 2 ? stage2Speed : stage3Speed);
 
-        public event Action<float> ReputationChanged;                   // percent terbaru
-        public event Action<int, int, int> ReputationStageChanged;      // prev, next, dir(+1/-1)
+        public event Action<float> ReputationChanged;
+        public event Action<int, int, int> ReputationStageChanged;
+        public event Action ReputationDepleted;
+
+        private bool _depletedTriggered;
+
+        private void Awake()
+        {
+            LoadOrInit();
+        }
 
         private void OnEnable()
         {
-            if (usePlayerPrefs && PlayerPrefs.HasKey(PrefKey))
-                repPercent = Mathf.Clamp(PlayerPrefs.GetFloat(PrefKey, 0f), 0f, 100f);
-
             RecalcStageAndNotify(initial: true);
+            TryNotifyDepleted();
         }
 
         public void AddPercent(float delta)
         {
-            repPercent = Mathf.Clamp(repPercent + delta, 0f, 100f);
-            if (usePlayerPrefs)
-            {
-                PlayerPrefs.SetFloat(PrefKey, repPercent);
-                PlayerPrefs.Save();
-            }
-            RecalcStageAndNotify(initial: false);
+            SetPercent(repPercent + delta);
         }
 
-        /// Dipanggil saat customer selesai. served => +1%; empty/timeout => -1%.
-        public void ApplyCheckout(bool served, bool empty)
+        public void SetPercent(float value)
         {
-            if (empty) AddPercent(-1f);
-            else if (served) AddPercent(+1f);
+            float old = repPercent;
+            repPercent = Mathf.Clamp(value, 0f, 100f);
+
+            if (Mathf.Approximately(old, repPercent))
+            {
+                RecalcStageAndNotify(initial: false);
+                TryNotifyDepleted();
+                return;
+            }
+
+            Save();
+            RecalcStageAndNotify(initial: false);
+            TryNotifyDepleted();
+        }
+
+        public void ResetToDefault()
+        {
+            _depletedTriggered = false;
+            SetPercent(defaultStartingPercent);
+        }
+
+        // benar = +2, salah/kurang/timeout = -1
+        public void ApplyCheckout(bool served, bool failed)
+        {
+            if (failed) AddPercent(-1f);
+            else if (served) AddPercent(+2f);
+        }
+
+        private void LoadOrInit()
+        {
+            _depletedTriggered = false;
+
+            if (!usePlayerPrefs)
+            {
+                repPercent = Mathf.Clamp(defaultStartingPercent, 0f, 100f);
+                return;
+            }
+
+            if (PlayerPrefs.HasKey(PrefKey))
+            {
+                repPercent = Mathf.Clamp(
+                    PlayerPrefs.GetFloat(PrefKey, defaultStartingPercent),
+                    0f,
+                    100f);
+                return;
+            }
+
+            repPercent = Mathf.Clamp(defaultStartingPercent, 0f, 100f);
+
+            if (saveDefaultOnFirstLoad)
+                Save();
+        }
+
+        private void Save()
+        {
+            if (!usePlayerPrefs) return;
+
+            PlayerPrefs.SetFloat(PrefKey, repPercent);
+            PlayerPrefs.Save();
         }
 
         private void RecalcStageAndNotify(bool initial)
@@ -62,7 +124,6 @@ namespace MMDress.Runtime.Reputation
             int prevStage = Stage;
             Stage = (repPercent <= stage1Max) ? 1 : (repPercent <= stage2Max ? 2 : 3);
 
-            // selalu notify agar HUD refresh
             ReputationChanged?.Invoke(repPercent);
 
             if (!initial && Stage != prevStage)
@@ -70,6 +131,15 @@ namespace MMDress.Runtime.Reputation
                 int dir = Stage > prevStage ? +1 : -1;
                 ReputationStageChanged?.Invoke(prevStage, Stage, dir);
             }
+        }
+
+        private void TryNotifyDepleted()
+        {
+            if (_depletedTriggered || !IsDepleted)
+                return;
+
+            _depletedTriggered = true;
+            ReputationDepleted?.Invoke();
         }
     }
 }

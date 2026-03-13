@@ -168,7 +168,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   playOnEnable: 1
   ignoreTimeScale: 0
-  startDelay: 0
+  startDelay: 2
   startScale: {x: 1.15, y: 0.85}
   overshootScale: 1.03
   inDuration: 0.2
