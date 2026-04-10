@@ -12,8 +12,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 58a3f072a561f674cb5887719e71a5d2, type: 3}
   m_Name: kebayakenchim
   m_EditorClassIdentifier: 
-  id: kebayakenchim
-  displayName: kebayakenchim
+  id: kebayakencim
+  displayName: kebayakencim
   slot: 0
   sprite: {fileID: 7008431911406251333, guid: c2f23d77b152bf741848fff6116382cd, type: 3}
   requiresMaterials: 1

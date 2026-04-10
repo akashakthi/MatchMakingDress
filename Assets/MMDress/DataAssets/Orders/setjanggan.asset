@@ -14,4 +14,4 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   requiredTop: {fileID: 11400000, guid: 1c33e4187ccda1a4a83e695c39e90095, type: 2}
   requiredBottom: {fileID: 11400000, guid: 6d314c1a0bd5070408dfb9a5690b1f97, type: 2}
-  payout: 100
+  payout: 2000
