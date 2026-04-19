@@ -1,11 +1,8 @@
-// Assets/MMDress/Scripts/Runtime/UI/Button/UIButtonJellyAnimator.cs
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.EventSystems;
 using DG.Tweening;
 
-// NOTE: TMP optional. File akan tetap compile walau TMP belum terpasang.
-// Saat TMP ada, symbol UNITY_TEXTMESHPRO otomatis diset Unity.
 #if UNITY_TEXTMESHPRO
 using TMPro;
 #endif
@@ -16,260 +13,193 @@ namespace MMDress.UI.Animations
     [RequireComponent(typeof(Button))]
     public sealed class UIButtonJellyAnimator : MonoBehaviour,
         IPointerEnterHandler, IPointerExitHandler,
-        IPointerDownHandler, IPointerUpHandler,
-        ISelectHandler, IDeselectHandler
+        IPointerDownHandler, IPointerUpHandler
     {
-        [Header("Targets (auto di Reset)")]
+        [Header("Target")]
         [SerializeField] private RectTransform target;
-        [SerializeField] private Image targetImage;
-#if UNITY_TEXTMESHPRO
-        [SerializeField] private TMP_Text targetText;
-#endif
 
-        [Header("Colors")]
-        [SerializeField] private bool tintImage = true;
-        [SerializeField] private bool tintText = true;
-        [SerializeField] private Color normalColor = Color.white;
-        [SerializeField] private Color hoverColor = Color.white;
-        [SerializeField] private Color pressedColor = new Color(0.95f, 0.95f, 0.95f, 1f);
-        [SerializeField] private Color disabledColor = new Color(1f, 1f, 1f, 0.5f);
+        [Header("Jelly")]
+        [SerializeField] private float hoverScale = 1.05f;
+        [SerializeField] private float pressedScale = 0.92f;
 
-        [Header("Jelly Settings")]
-        [SerializeField, Min(0.01f)] private float hoverScale = 1.06f;
-        [SerializeField, Min(0.01f)] private float pressedScale = 0.94f;
-        [SerializeField, Min(0f)] private float durHover = 0.18f;
-        [SerializeField, Min(0f)] private float durPressed = 0.12f;
-        [SerializeField] private Ease easeHover = Ease.OutBack;
-        [SerializeField] private Ease easePressed = Ease.OutBack;
+        [Header("Scale Limit 🔥")]
+        [SerializeField] private float maxScaleMultiplier = 1.2f;
 
-        [Header("Click Pop (Punch)")]
-        [SerializeField] private Vector3 punch = new Vector3(0.18f, 0.18f, 0f);
-        [SerializeField, Min(1)] private int vibrato = 12;
-        [SerializeField, Range(0f, 1f)] private float elasticity = 0.8f;
-        [SerializeField, Min(0f)] private float durPunch = 0.28f;
+        [Header("Punch Feel")]
+        [SerializeField] private float punchDuration = 0.1f;
 
-        // --- BAGIAN BARU: AUDIO ---
+        // =========================
+        // AUDIO
+        // =========================
         [Header("Audio")]
-        [Tooltip("Drag AudioSource di sini. Jika kosong, script akan mencari di GameObject ini.")]
         [SerializeField] private AudioSource audioSource;
         [SerializeField] private AudioClip clickSound;
-        // --------------------------
+        [SerializeField] private AudioClip maxPitchSound;
 
-        [Header("Misc")]
-        [SerializeField] private bool updateIndependent = true;
+        [Header("Pitch")]
+        [SerializeField] private float basePitch = 1f;
+        [SerializeField] private float pitchStep = 0.05f;
+        [SerializeField] private float maxPitch = 1.6f;
+        [SerializeField] private float pitchResetDelay = 0.4f;
+
+        float _currentPitch;
+        float _lastClickTime;
+        bool _hitMaxPitch;
+
+        // =========================
+        // HOLD SYSTEM
+        // =========================
+        [Header("Hold Settings")]
+        [SerializeField] private float holdStartDelay = 0.25f;
+        [SerializeField] private float holdInterval = 0.08f;
+
+        bool _isHolding;
+        float _holdTimer;
+        float _repeatTimer;
 
         Button _btn;
         Vector3 _baseScale;
-        Tween _scaleTween, _imgTween;
-#if UNITY_TEXTMESHPRO
-        Tween _txtTween;
-#endif
-
-        void Reset()
-        {
-            _btn = GetComponent<Button>();
-            if (!target) target = GetComponent<RectTransform>();
-            if (!targetImage) targetImage = GetComponent<Image>();
-#if UNITY_TEXTMESHPRO
-            if (!targetText)  targetText = GetComponentInChildren<TMP_Text>(true);
-#endif
-            // Auto find AudioSource saat di-reset di editor
-            if (!audioSource) audioSource = GetComponent<AudioSource>();
-        }
+        Tween _tween;
 
         void Awake()
         {
             _btn = GetComponent<Button>();
-            if (!target) target = transform as RectTransform;
-            _baseScale = target ? target.localScale : Vector3.one;
 
-            if (tintImage && targetImage) targetImage.color = normalColor;
-#if UNITY_TEXTMESHPRO
-            if (tintText  && targetText)  targetText.color  = normalColor;
-#endif
-            // Fallback jika audioSource lupa diassign di inspector
+            if (!target) target = transform as RectTransform;
             if (!audioSource) audioSource = GetComponent<AudioSource>();
 
-            _btn.onClick.AddListener(OnClicked);
+            _baseScale = target.localScale;
+            _currentPitch = basePitch;
         }
 
-        void OnEnable()
+        void Update()
         {
-            KillAll();
-            ApplyStateInstant(_btn && _btn.interactable ? ButtonState.Normal : ButtonState.Disabled);
-        }
+            if (!_isHolding || !_btn.interactable) return;
 
-        void OnDisable() => KillAll();
+            _holdTimer += Time.unscaledDeltaTime;
 
-        void OnDestroy()
-        {
-            if (_btn) _btn.onClick.RemoveListener(OnClicked);
-            KillAll();
-        }
-
-        enum ButtonState { Normal, Hover, Pressed, Disabled }
-
-        public void OnPointerEnter(PointerEventData e) { if (IsInteractable()) PlayState(ButtonState.Hover); }
-        public void OnPointerExit(PointerEventData e) { if (IsInteractable()) PlayState(ButtonState.Normal); }
-        public void OnPointerDown(PointerEventData e) { if (IsInteractable()) PlayState(ButtonState.Pressed); }
-        public void OnPointerUp(PointerEventData e)
-        {
-            if (!IsInteractable()) return;
-            PlayState(IsPointerOverMe(e) ? ButtonState.Hover : ButtonState.Normal);
-        }
-        public void OnSelect(BaseEventData e) { if (IsInteractable()) PlayState(ButtonState.Hover); }
-        public void OnDeselect(BaseEventData e) { if (IsInteractable()) PlayState(ButtonState.Normal); }
-
-        public void SetInteractable(bool v)
-        {
-            if (_btn) _btn.interactable = v;
-            PlayState(v ? ButtonState.Normal : ButtonState.Disabled);
-        }
-
-        void PlayState(ButtonState s)
-        {
-            KillAll();
-            switch (s)
+            if (_holdTimer >= holdStartDelay)
             {
-                case ButtonState.Normal:
-                    TweenScale(_baseScale, durHover, easeHover);
-                    TweenColors(normalColor, durHover);
-                    break;
-                case ButtonState.Hover:
-                    TweenScale(_baseScale * hoverScale, durHover, easeHover);
-                    TweenColors(hoverColor, durHover);
-                    break;
-                case ButtonState.Pressed:
-                    TweenScale(_baseScale * pressedScale, durPressed, easePressed);
-                    TweenColors(pressedColor, durPressed);
-                    break;
-                case ButtonState.Disabled:
-                    ApplyStateInstant(ButtonState.Disabled);
-                    break;
+                _repeatTimer += Time.unscaledDeltaTime;
+
+                if (_repeatTimer >= holdInterval)
+                {
+                    _repeatTimer = 0f;
+                    TriggerClick();
+                }
             }
         }
 
-        void ApplyStateInstant(ButtonState s)
+        public void OnPointerDown(PointerEventData eventData)
         {
-            KillAll();
-            switch (s)
-            {
-                case ButtonState.Disabled:
-                    if (target) target.localScale = _baseScale;
-                    SetColorsInstant(disabledColor);
-                    break;
-                case ButtonState.Normal:
-                    if (target) target.localScale = _baseScale;
-                    SetColorsInstant(normalColor);
-                    break;
-                case ButtonState.Hover:
-                    if (target) target.localScale = _baseScale * hoverScale;
-                    SetColorsInstant(hoverColor);
-                    break;
-                case ButtonState.Pressed:
-                    if (target) target.localScale = _baseScale * pressedScale;
-                    SetColorsInstant(pressedColor);
-                    break;
-            }
+            if (!_btn.interactable) return;
+
+            _isHolding = true;
+            _holdTimer = 0f;
+            _repeatTimer = 0f;
+
+            PlayScale(pressedScale);
+            TriggerClick();
         }
 
-        void OnClicked()
+        public void OnPointerUp(PointerEventData eventData)
         {
-            if (!IsInteractable()) return;
-
-            KillAll();
-
-            // --- AUDIO PLAYBACK ---
-            if (audioSource != null && clickSound != null)
-            {
-                audioSource.PlayOneShot(clickSound);
-            }
-            // ----------------------
-
-            if (target)
-            {
-                _scaleTween = target.DOPunchScale(punch, durPunch, vibrato, elasticity)
-                    .SetUpdate(updateIndependent)
-                    .OnComplete(() =>
-                    {
-                        TweenScale(_baseScale * hoverScale, durHover, easeHover);
-                        TweenColors(hoverColor, durHover);
-                    });
-            }
-
-#if UNITY_TEXTMESHPRO
-            if (targetText)
-            {
-                targetText.transform.DOPunchScale(punch * 0.6f, durPunch * 0.9f, vibrato, elasticity)
-                    .SetUpdate(updateIndependent);
-            }
-#endif
+            _isHolding = false;
+            PlayScale(hoverScale);
         }
 
-        // --- Tween Helpers (tanpa Module UI/TMP) ---
-        void TweenScale(Vector3 to, float duration, Ease ease)
+        public void OnPointerEnter(PointerEventData eventData)
+        {
+            if (!_isHolding)
+                PlayScale(hoverScale);
+        }
+
+        public void OnPointerExit(PointerEventData eventData)
+        {
+            if (!_isHolding)
+                PlayScale(1f);
+        }
+
+        void TriggerClick()
+        {
+            PlaySound();
+            PlayPunch();
+        }
+
+        // =========================
+        // AUDIO
+        // =========================
+
+        void PlaySound()
+        {
+            if (audioSource == null || clickSound == null) return;
+
+            if (Time.unscaledTime - _lastClickTime > pitchResetDelay)
+            {
+                _currentPitch = basePitch;
+                _hitMaxPitch = false;
+            }
+
+            audioSource.pitch = _currentPitch + Random.Range(-0.02f, 0.02f);
+            audioSource.PlayOneShot(clickSound);
+
+            float speedMultiplier = Mathf.Lerp(1f, 3f,
+                Mathf.InverseLerp(basePitch, maxPitch, _currentPitch));
+
+            _currentPitch = Mathf.Min(_currentPitch + pitchStep * speedMultiplier, maxPitch);
+
+            if (_currentPitch >= maxPitch && !_hitMaxPitch)
+            {
+                _hitMaxPitch = true;
+
+                if (maxPitchSound != null)
+                    audioSource.PlayOneShot(maxPitchSound);
+            }
+
+            _lastClickTime = Time.unscaledTime;
+        }
+
+        // =========================
+        // 🔥 SCALE FIX (NO MORE OVERGROW)
+        // =========================
+
+        void PlayPunch()
         {
             if (!target) return;
-            _scaleTween = target.DOScale(to, duration).SetEase(ease).SetUpdate(updateIndependent);
+
+            _tween?.Kill();
+
+            // Hit scale (dibatasi max 1.2x)
+            Vector3 targetScale = _baseScale * maxScaleMultiplier;
+
+            _tween = target.DOScale(targetScale, punchDuration)
+                .SetEase(Ease.OutQuad)
+                .OnComplete(() =>
+                {
+                    target.DOScale(_baseScale, punchDuration)
+                        .SetEase(Ease.InQuad);
+                });
         }
 
-        void TweenColors(Color to, float duration)
+        // =========================
+        // HOVER / PRESS SCALE
+        // =========================
+
+        void PlayScale(float scale)
         {
-            if (tintImage && targetImage)
-                _imgTween = TweenGraphicColor(targetImage, to, duration);
+            if (!target) return;
 
-#if UNITY_TEXTMESHPRO
-            if (tintText && targetText)
-                _txtTween = TweenGraphicColor(targetText, to, duration);
-#endif
-        }
+            _tween?.Kill();
 
-        void SetColorsInstant(Color c)
-        {
-            if (tintImage && targetImage) targetImage.color = c;
-#if UNITY_TEXTMESHPRO
-            if (tintText  && targetText)  targetText.color  = c;
-#endif
-        }
+            Vector3 targetScale = _baseScale * scale;
 
-        // Generic color tween untuk Graphic & TMP_Text via DOTween.To
-        Tween TweenGraphicColor(Graphic g, Color to, float duration)
-        {
-            Color start = g.color;
-            return DOTween.To(() => start, v => { start = v; g.color = v; }, to, duration)
-                          .SetUpdate(updateIndependent);
-        }
+            // clamp juga biar aman
+            float max = maxScaleMultiplier;
+            targetScale.x = Mathf.Min(targetScale.x, _baseScale.x * max);
+            targetScale.y = Mathf.Min(targetScale.y, _baseScale.y * max);
 
-#if UNITY_TEXTMESHPRO
-        Tween TweenGraphicColor(TMP_Text t, Color to, float duration)
-        {
-            Color start = t.color;
-            return DOTween.To(() => start, v => { start = v; t.color = v; }, to, duration)
-                          .SetUpdate(updateIndependent);
-        }
-#endif
-
-        void KillAll()
-        {
-            _scaleTween?.Kill();
-            _imgTween?.Kill();
-#if UNITY_TEXTMESHPRO
-            _txtTween?.Kill();
-            _txtTween = null;
-#endif
-            _scaleTween = _imgTween = null;
-        }
-
-        bool IsInteractable() => _btn && _btn.interactable;
-
-        bool IsPointerOverMe(PointerEventData e)
-        {
-            if (e == null) return false;
-            var results = new System.Collections.Generic.List<RaycastResult>();
-            EventSystem.current.RaycastAll(e, results);
-            for (int i = 0; i < results.Count; i++)
-                if (results[i].gameObject == gameObject) return true;
-            return false;
+            _tween = target.DOScale(targetScale, 0.15f)
+                .SetEase(Ease.OutBack);
         }
     }
 }

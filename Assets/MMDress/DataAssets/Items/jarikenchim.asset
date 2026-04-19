@@ -12,8 +12,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 58a3f072a561f674cb5887719e71a5d2, type: 3}
   m_Name: jarikenchim
   m_EditorClassIdentifier: 
-  id: jarikenchim
-  displayName: jarikenchim
+  id: jarikencim
+  displayName: jarikencim
   slot: 1
   sprite: {fileID: 5741993677501447200, guid: 312ca3ad6f3c3484294a17dc96321b8d, type: 3}
   requiresMaterials: 1

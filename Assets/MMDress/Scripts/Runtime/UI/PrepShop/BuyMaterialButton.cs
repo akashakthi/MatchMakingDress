@@ -1,7 +1,8 @@
-﻿// Assets/MMDress/Scripts/Runtime/UI/PrepShop/BuyMaterialsButton.cs
+﻿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.EventSystems;
 using MMDress.Services;
 using MMDress.Data;
 
@@ -24,12 +25,15 @@ namespace MMDress.Runtime.UI.PrepShop
         [Header("Orders (material + qty per item)")]
         [SerializeField] private List<MaterialOrder> orders = new();
 
-        [Header("Behaviour")]
-        [Tooltip("Jika true, tetap lanjut belanja entry berikutnya walau ada satu yang gagal.")]
-        [SerializeField] private bool continueOnFail = false;
+        [Header("Hold Settings")]
+        [SerializeField] private float holdDelay = 0.4f;
+        [SerializeField] private float holdInterval = 0.15f;
 
-        [Tooltip("Tampilkan log ringkas hasil belanja di Console.")]
+        [Header("Behaviour")]
+        [SerializeField] private bool continueOnFail = false;
         [SerializeField] private bool verboseLog = true;
+
+        Coroutine _holdRoutine;
 
         void Reset()
         {
@@ -43,10 +47,91 @@ namespace MMDress.Runtime.UI.PrepShop
 
         void Awake()
         {
-            if (button) button.onClick.AddListener(OnClickBuy);
+            if (!button) return;
+
+            // klik biasa
+            button.onClick.RemoveAllListeners();
+            button.onClick.AddListener(BuyOnce);
+
+            // setup hold event
+            SetupHoldEvents();
         }
 
-        void OnClickBuy()
+        // =========================
+        // HOLD SETUP
+        // =========================
+
+        void SetupHoldEvents()
+        {
+            var trigger = button.gameObject.GetComponent<EventTrigger>();
+            if (!trigger) trigger = button.gameObject.AddComponent<EventTrigger>();
+
+            trigger.triggers.Clear();
+
+            var down = new EventTrigger.Entry { eventID = EventTriggerType.PointerDown };
+            down.callback.AddListener((_) => StartHold());
+            trigger.triggers.Add(down);
+
+            var up = new EventTrigger.Entry { eventID = EventTriggerType.PointerUp };
+            up.callback.AddListener((_) => StopHold());
+            trigger.triggers.Add(up);
+
+            var exit = new EventTrigger.Entry { eventID = EventTriggerType.PointerExit };
+            exit.callback.AddListener((_) => StopHold());
+            trigger.triggers.Add(exit);
+        }
+
+        // =========================
+        // HOLD LOGIC (TURBO)
+        // =========================
+
+        void StartHold()
+        {
+            StopHold();
+            _holdRoutine = StartCoroutine(HoldRoutine());
+        }
+
+        void StopHold()
+        {
+            if (_holdRoutine != null)
+            {
+                StopCoroutine(_holdRoutine);
+                _holdRoutine = null;
+            }
+        }
+
+        IEnumerator HoldRoutine()
+        {
+            float holdTime = 0f;
+
+            yield return new WaitForSeconds(holdDelay);
+
+            while (true)
+            {
+                holdTime += holdInterval;
+
+                int multiplier = 1;
+
+                // 🔥 TURBO MODE
+                if (holdTime > 4f)
+                    multiplier = 10;
+                else if (holdTime > 2f)
+                    multiplier = 5;
+
+                for (int i = 0; i < multiplier; i++)
+                {
+                    BuyOnce();
+                }
+
+                yield return new WaitForSeconds(holdInterval);
+            }
+        }
+
+        // =========================
+        // BUY LOGIC
+        // =========================
+
+        void BuyOnce()
         {
             if (!procurement) return;
 
@@ -63,7 +148,8 @@ namespace MMDress.Runtime.UI.PrepShop
 
                 if (!bought && !continueOnFail)
                 {
-                    if (verboseLog) Debug.LogWarning($"[BuyMaterials] Gagal pada entry ke-{i} ({o.material.displayName}). Stop.");
+                    if (verboseLog)
+                        Debug.LogWarning($"[BuyMaterials] Gagal pada entry ke-{i} ({o.material.displayName}). Stop.");
                     break;
                 }
             }

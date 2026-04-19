@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3b23de2cf7c2b564e984b9cc4361d474, type: 3}
   m_Name: ProcurementConfig
   m_EditorClassIdentifier: 
-  startingMoney: 10000
+  startingMoney: 15000
   prepDurationSeconds: 120
   clothPrice: 50
   threadPrice: 20

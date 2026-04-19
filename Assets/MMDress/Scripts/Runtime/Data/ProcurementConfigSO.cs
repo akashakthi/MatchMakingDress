@@ -6,7 +6,7 @@ namespace MMDress.Runtime.Inventory
     public sealed class ProcurementConfigSO : ScriptableObject
     {
         [Header("Uang awal (satu kali, saat hari pertama dimulai)")]
-        public int startingMoney = 10000;
+        public int startingMoney = 15000;
 
         [Header("Durasi real fase Prep (detik)")]
         public float prepDurationSeconds = 120f; // 2 menit
