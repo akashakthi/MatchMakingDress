@@ -15,7 +15,7 @@ MonoBehaviour:
   id: kebayakencim
   displayName: kebayakencim
   slot: 0
-  sprite: {fileID: 7008431911406251333, guid: c2f23d77b152bf741848fff6116382cd, type: 3}
+  sprite: {fileID: -2609925283117341023, guid: ddf0ca64a1aaade4b900e8d82dd7aadc, type: 3}
   requiresMaterials: 1
   materialCosts:
   - material: {fileID: 11400000, guid: 39827433ff149f247a031cd7a7ad65db, type: 2}

@@ -15,7 +15,7 @@ MonoBehaviour:
   id: kebayajanggan
   displayName: kebayajanggan
   slot: 0
-  sprite: {fileID: 1450432000782287011, guid: 85b8cce185ada024c9bfe7338c414448, type: 3}
+  sprite: {fileID: 6123928959630241260, guid: 39aa93f85d803ac40a801430d03ee062, type: 3}
   requiresMaterials: 1
   materialCosts:
   - material: {fileID: 11400000, guid: 39827433ff149f247a031cd7a7ad65db, type: 2}

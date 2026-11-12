@@ -15,7 +15,7 @@ MonoBehaviour:
   id: kebayakutubaru
   displayName: kebayakutubaru
   slot: 0
-  sprite: {fileID: 9084996102440849483, guid: 7ea64c50c98399b4aa8af4a1c7725a75, type: 3}
+  sprite: {fileID: 2077827185811189232, guid: 4a68472136dfc464c837191f6bb591c0, type: 3}
   requiresMaterials: 1
   materialCosts:
   - material: {fileID: 11400000, guid: 39827433ff149f247a031cd7a7ad65db, type: 2}

@@ -15,7 +15,7 @@ MonoBehaviour:
   id: kebayakartini
   displayName: kebayakartini
   slot: 0
-  sprite: {fileID: 7212768193189222568, guid: 950408c03420edb448544397f0054075, type: 3}
+  sprite: {fileID: 7659808054998483472, guid: b5d77f125c4993641ac2889882c5d874, type: 3}
   requiresMaterials: 1
   materialCosts:
   - material: {fileID: 11400000, guid: 39827433ff149f247a031cd7a7ad65db, type: 2}

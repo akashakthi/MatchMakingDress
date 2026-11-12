@@ -15,7 +15,7 @@ MonoBehaviour:
   id: kebayabludru
   displayName: kebayabludru
   slot: 0
-  sprite: {fileID: -7229062012116183166, guid: 206bf55be466999498dc9e71a2072735, type: 3}
+  sprite: {fileID: -5807320428713998217, guid: df9410b5e8d494542821c6804c99435b, type: 3}
   requiresMaterials: 1
   materialCosts:
   - material: {fileID: 11400000, guid: 39827433ff149f247a031cd7a7ad65db, type: 2}
